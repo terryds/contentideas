@@ -1,0 +1,92 @@
+<title>Content Engine Runs</title>
+<style>
+  :root{--paper:#FAF8F4;--surface:#FFFFFF;--ink:#211E1A;--muted:#6F6759;--line:#E6E1D6;--accent:#9E1B32;--accent-hover:#831226;--accent-ink:#FFFFFF;--good:#2E6B4A;--good-bg:#E4F0E7;--warn:#8F6400;--warn-bg:#F6EDD6;--accent-bg:#F7E3E7;--shadow:0 1px 3px rgb(0 0 0/.06);--serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;--sans:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--paper:#181511;--surface:#201C17;--ink:#EDE7DC;--muted:#A79E8F;--line:#37312A;--accent:#E86A80;--accent-hover:#F08296;--accent-ink:#2A0A12;--good:#6FBF8E;--good-bg:#24352B;--warn:#D9A84E;--warn-bg:#3A3222;--accent-bg:#40232A;--shadow:0 1px 3px rgb(0 0 0/.4)}}
+  :root[data-theme="dark"]{--paper:#181511;--surface:#201C17;--ink:#EDE7DC;--muted:#A79E8F;--line:#37312A;--accent:#E86A80;--accent-hover:#F08296;--accent-ink:#2A0A12;--good:#6FBF8E;--good-bg:#24352B;--warn:#D9A84E;--warn-bg:#3A3222;--accent-bg:#40232A;--shadow:0 1px 3px rgb(0 0 0/.4)}
+  body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55;margin:0;padding:0 24px 96px}
+  main{max-width:860px;margin:0 auto}
+  .nav{max-width:860px;margin:0 auto 40px;display:flex;align-items:center;gap:24px;padding:20px 0;border-bottom:1px solid var(--line)}
+  .mark{width:32px;height:32px;border-radius:7px;background:var(--accent);color:var(--accent-ink);font-family:var(--serif);font-size:20px;font-weight:700;display:grid;place-items:center;flex:none}
+  .nav .brand{font-family:var(--serif);font-weight:700;font-size:17px;margin-right:8px}
+  .nav a{color:var(--muted);text-decoration:none;font-size:14px;font-weight:600;padding:4px 0}
+  .nav a.active{color:var(--accent);border-bottom:2px solid var(--accent)}
+  h1{font-family:var(--serif);font-size:30px;line-height:1.15;font-weight:700;margin:0}
+  .head-row{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:4px}
+  .page-note{color:var(--muted);font-size:13px;margin:0 0 24px}
+  button{font:600 14px/1 var(--sans);border-radius:6px;padding:10px 16px;cursor:pointer;border:1px solid transparent}
+  .btn-secondary{background:var(--surface);color:var(--ink);border-color:var(--line);box-shadow:var(--shadow)}
+  .chip{display:inline-block;border-radius:999px;padding:3px 10px;font-size:13px;font-weight:600}
+  .chip-good{background:var(--good-bg);color:var(--good)}
+  .chip-warn{background:var(--warn-bg);color:var(--warn)}
+  .chip-bad{background:var(--accent-bg);color:var(--accent)}
+  .run{background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);margin-bottom:12px}
+  .run-head{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;padding:14px 20px;cursor:pointer}
+  .run-head .rid{font-family:var(--mono);font-size:13px;font-weight:700}
+  .run-head .meta{font-family:var(--mono);font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .run-head .spacer{flex:1}
+  .caret{color:var(--muted);font-size:12px}
+  .run-body{border-top:1px solid var(--line);padding:6px 20px 16px}
+  .table-wrap{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;font-size:14px}
+  th{text-align:left;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:8px 16px 8px 0;border-bottom:1px solid var(--line)}
+  td{padding:10px 16px 10px 0;border-bottom:1px solid var(--line)}
+  td.num{font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums}
+  .err{font-family:var(--mono);font-size:12.5px;line-height:1.6;background:var(--accent-bg);color:var(--accent);border-radius:6px;padding:10px 14px;margin:10px 0 4px;white-space:pre-wrap}
+  .attempts{font-size:13px;color:var(--muted)}
+  .t-small{font-size:13px;color:var(--muted)}
+  a{color:var(--accent)}
+</style>
+
+<nav class="nav">
+  <div class="mark">C</div><span class="brand">Content Engine</span>
+  <a href="#">Inbox</a><a href="#">Sources</a><a class="active" href="#">Runs</a><a href="#">Settings</a>
+</nav>
+
+<main>
+  <div class="head-row">
+    <h1>Cron runs</h1>
+    <button class="btn-secondary">▶ Run now</button>
+  </div>
+  <p class="page-note">Every scheduled check, newest first. Click a run to see per-source details and errors.</p>
+
+  <!-- expanded run with a failure -->
+  <div class="run">
+    <div class="run-head">
+      <span class="rid">#142</span>
+      <span class="meta">today 07:41 · 6 sources · 14 new · 3 matched · 58.2s</span>
+      <span class="spacer"></span>
+      <span class="chip chip-bad">1 failed</span>
+      <span class="caret">▼</span>
+    </div>
+    <div class="run-body">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Source</th><th>New</th><th>Matched</th><th>Duration</th><th>Attempts</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td class="num">hn:frontpage</td><td class="num">8</td><td class="num">1</td><td class="num">3.1s</td><td class="num">1</td><td><span class="chip chip-good">OK</span></td></tr>
+            <tr><td class="num">yt:@t3dotgg</td><td class="num">1</td><td class="num">1</td><td class="num">12.4s</td><td class="num">1</td><td><span class="chip chip-good">OK</span></td></tr>
+            <tr><td class="num">x:@levelsio</td><td class="num">4</td><td class="num">1</td><td class="num">21.6s</td><td class="num">2</td><td><span class="chip chip-good">OK</span></td></tr>
+            <tr><td class="num">rss:swyx.io</td><td class="num">1</td><td class="num">0</td><td class="num">1.8s</td><td class="num">1</td><td><span class="chip chip-good">OK</span></td></tr>
+            <tr>
+              <td class="num">yt:@fireship</td><td class="num">—</td><td class="num">—</td><td class="num">19.3s</td><td class="num">3</td><td><span class="chip chip-bad">Failed</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="err">ProxyAuthError: Floxy returned 407 Proxy Authentication Required
+  attempt 1  07:41:12  new session ses_8f21 → 407
+  attempt 2  07:41:31  new session ses_9c03 → 407
+  attempt 3  07:41:52  new session ses_b7d8 → 407
+  giving up after 3 attempts · next retry at 08:15 run</div>
+      <div class="attempts">Looks like a credential issue — <a href="#">check Floxy settings</a>. Filter step was skipped for this source; nothing was lost, entries will be picked up next run.</div>
+    </div>
+  </div>
+
+  <!-- collapsed runs -->
+  <div class="run"><div class="run-head"><span class="rid">#141</span><span class="meta">today 07:11 · 6 sources · 2 new · 0 matched · 41.0s</span><span class="spacer"></span><span class="chip chip-good">OK</span><span class="caret">▶</span></div></div>
+  <div class="run"><div class="run-head"><span class="rid">#140</span><span class="meta">today 06:41 · 6 sources · 9 new · 2 matched · 63.9s</span><span class="spacer"></span><span class="chip chip-good">OK</span><span class="caret">▶</span></div></div>
+  <div class="run"><div class="run-head"><span class="rid">#139</span><span class="meta">today 06:11 · 6 sources · 0 new · 0 matched · 22.4s</span><span class="spacer"></span><span class="chip chip-warn">Retries</span><span class="caret">▶</span></div></div>
+  <div class="run"><div class="run-head"><span class="rid">#138</span><span class="meta">today 05:41 · 6 sources · 3 new · 1 matched · 47.7s</span><span class="spacer"></span><span class="chip chip-good">OK</span><span class="caret">▶</span></div></div>
+
+  <p class="t-small" style="margin-top:24px">Runs older than 30 days are pruned automatically.</p>
+</main>

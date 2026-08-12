@@ -1,0 +1,5 @@
+.DS_Store
+node_modules/
+build/data/
+build/*.log
+build/overnight-*.log

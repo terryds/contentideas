@@ -1,0 +1,96 @@
+<title>Content Engine Inbox</title>
+<!-- Status: done -->
+<style>
+  :root{--paper:#FAF8F4;--surface:#FFFFFF;--ink:#211E1A;--muted:#6F6759;--line:#E6E1D6;--accent:#9E1B32;--accent-hover:#831226;--accent-ink:#FFFFFF;--good:#2E6B4A;--good-bg:#E4F0E7;--warn:#8F6400;--warn-bg:#F6EDD6;--accent-bg:#F7E3E7;--shadow:0 1px 3px rgb(0 0 0/.06);--serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;--sans:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--paper:#181511;--surface:#201C17;--ink:#EDE7DC;--muted:#A79E8F;--line:#37312A;--accent:#E86A80;--accent-hover:#F08296;--accent-ink:#2A0A12;--good:#6FBF8E;--good-bg:#24352B;--warn:#D9A84E;--warn-bg:#3A3222;--accent-bg:#40232A;--shadow:0 1px 3px rgb(0 0 0/.4)}}
+  :root[data-theme="dark"]{--paper:#181511;--surface:#201C17;--ink:#EDE7DC;--muted:#A79E8F;--line:#37312A;--accent:#E86A80;--accent-hover:#F08296;--accent-ink:#2A0A12;--good:#6FBF8E;--good-bg:#24352B;--warn:#D9A84E;--warn-bg:#3A3222;--accent-bg:#40232A;--shadow:0 1px 3px rgb(0 0 0/.4)}
+  body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55;margin:0;padding:0 24px 96px}
+  main{max-width:860px;margin:0 auto}
+  .nav{max-width:860px;margin:0 auto 40px;display:flex;align-items:center;gap:24px;padding:20px 0;border-bottom:1px solid var(--line)}
+  .mark{width:32px;height:32px;border-radius:7px;background:var(--accent);color:var(--accent-ink);font-family:var(--serif);font-size:20px;font-weight:700;display:grid;place-items:center;flex:none}
+  .nav .brand{font-family:var(--serif);font-weight:700;font-size:17px;margin-right:8px}
+  .nav a{color:var(--muted);text-decoration:none;font-size:14px;font-weight:600;padding:4px 0}
+  .nav a.active{color:var(--accent);border-bottom:2px solid var(--accent)}
+  h1{font-family:var(--serif);font-size:30px;line-height:1.15;font-weight:700;margin:0 0 4px;text-wrap:balance}
+  .page-note{color:var(--muted);font-size:13px;margin:0 0 24px}
+  .chip{display:inline-block;border-radius:999px;padding:3px 10px;font-size:13px;font-weight:600}
+  .chip-good{background:var(--good-bg);color:var(--good)}
+  .chip-warn{background:var(--warn-bg);color:var(--warn)}
+  .chip-bad{background:var(--accent-bg);color:var(--accent)}
+  .chip-neutral{background:transparent;color:var(--muted);border:1px solid var(--line)}
+  .filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px}
+  .filters .chip{cursor:pointer}
+  .filters .chip.on{background:var(--ink);color:var(--paper)}
+  button{font:600 14px/1 var(--sans);border-radius:6px;padding:10px 16px;cursor:pointer;border:1px solid transparent}
+  .btn-primary{background:var(--accent);color:var(--accent-ink)}
+  .btn-primary:hover{background:var(--accent-hover)}
+  .btn-secondary{background:var(--surface);color:var(--ink);border-color:var(--line);box-shadow:var(--shadow)}
+  .btn-quiet{background:transparent;color:var(--accent)}
+  .btn-quiet:hover{background:var(--accent-bg)}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:20px 24px;margin-bottom:16px}
+  .item-title{font-family:var(--serif);font-size:19px;font-weight:700;line-height:1.3}
+  .t-small{font-size:13px;line-height:1.4;color:var(--muted)}
+  .take{margin:10px 0 16px;max-width:65ch}
+  .take .lbl{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+  .src{font-family:var(--mono);font-size:12.5px}
+  a{color:var(--accent)}
+  .state-label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:48px 0 12px;border-top:1px dashed var(--line);padding-top:24px}
+  .empty{text-align:center;padding:56px 24px}
+  .empty .mark{margin:0 auto 16px;opacity:.4;width:48px;height:48px;font-size:30px;border-radius:10px}
+  .empty h2{font-family:var(--serif);font-size:21px;margin:0 0 6px}
+</style>
+
+<nav class="nav">
+  <div class="mark">C</div><span class="brand">Content Engine</span>
+  <a class="active" href="#">Inbox</a><a href="#">Sources</a><a href="#">Runs</a><a href="#">Settings</a>
+</nav>
+
+<main>
+  <h1>Inbox</h1>
+  <p class="page-note">Everything your taste filter matched, newest first. Last check 07:45 — next at 08:15.</p>
+
+  <div class="filters">
+    <span class="chip chip-neutral on">All · 4</span>
+    <span class="chip chip-neutral">YouTube · 1</span>
+    <span class="chip chip-neutral">X · 1</span>
+    <span class="chip chip-neutral">Hacker News · 1</span>
+    <span class="chip chip-neutral">RSS · 1</span>
+    <span class="chip chip-neutral">Dismissed</span>
+  </div>
+
+  <div class="card">
+    <div class="item-title">Why local-first software is winning again</div>
+    <div class="t-small" style="margin-top:4px"><span class="src">hn:frontpage</span> · 312 points · matched 07:42</div>
+    <div class="take"><span class="lbl">Filter's take</span><br>Strong fit — indie-hacker angle, contrarian take on sync engines, thread potential in the migration war stories.</div>
+    <div class="row"><button class="btn-primary">Draft thread</button><a href="#" style="font-size:14px;font-weight:600">Open on HN ↗</a><button class="btn-quiet">Dismiss</button></div>
+  </div>
+
+  <div class="card">
+    <div class="item-title">I rebuilt my entire SaaS in a weekend with Claude — here's the honest cost breakdown</div>
+    <div class="t-small" style="margin-top:4px"><span class="src">yt:@t3dotgg</span> · 14:22 video · matched 07:41 · transcript fetched</div>
+    <div class="take"><span class="lbl">Filter's take</span><br>Matches your "AI coding economics" interest. Concrete numbers in the transcript — good hook material.</div>
+    <div class="row"><button class="btn-primary">Draft thread</button><a href="#" style="font-size:14px;font-weight:600">Watch ↗</a><button class="btn-quiet">Dismiss</button></div>
+  </div>
+
+  <div class="card">
+    <div class="item-title">Thread by @levelsio on charging more as a solo founder</div>
+    <div class="t-small" style="margin-top:4px"><span class="src">x:@levelsio</span> · 41K views · matched 06:15 · <span class="chip chip-good">Drafted</span></div>
+    <div class="take"><span class="lbl">Filter's take</span><br>Pricing-psychology content performs well for you; a reply-thread with your own numbers would land.</div>
+    <div class="row"><button class="btn-secondary">Open draft</button><a href="#" style="font-size:14px;font-weight:600">View on X ↗</a></div>
+  </div>
+
+  <div class="card" style="opacity:.75">
+    <div class="item-title">Ship small, ship weekly: a newsletter case study</div>
+    <div class="t-small" style="margin-top:4px"><span class="src">rss:swyx.io</span> · matched yesterday · <span class="chip chip-good">Posted</span></div>
+    <div class="row" style="margin-top:12px"><button class="btn-secondary">View thread</button></div>
+  </div>
+
+  <div class="state-label">Empty state — same page when nothing matched</div>
+  <div class="card empty">
+    <div class="mark">C</div>
+    <h2>All caught up</h2>
+    <p class="t-small">Nothing matched since yesterday 18:00. 6 sources checked, 27 entries filtered.</p>
+    <button class="btn-secondary" style="margin-top:8px">Run check now</button>
+  </div>
+</main>
