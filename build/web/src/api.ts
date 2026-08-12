@@ -112,14 +112,17 @@ export const api = {
   removeSource: (id: number) => request<{ ok: true }>(`/api/sources/${id}`, { method: "DELETE" }),
 
   listEntries: (filter: string) =>
-    request<{ entries: Entry[]; counts: { source_type: SourceType; n: number }[]; lastRun: Run | null }>(
-      `/api/entries?filter=${encodeURIComponent(filter)}`,
-    ),
+    request<{
+      entries: Entry[];
+      counts: { source_type: SourceType; n: number }[];
+      lastRun: Run | null;
+      nextAt: string | null;
+    }>(`/api/entries?filter=${encodeURIComponent(filter)}`),
   getEntry: (id: string) => request<{ entry: Entry; thread: Thread | null }>(`/api/entries/${id}`),
   dismissEntry: (id: number) => request<{ ok: true }>(`/api/entries/${id}/dismiss`, { method: "POST" }),
   restoreEntry: (id: number) => request<{ ok: true }>(`/api/entries/${id}/restore`, { method: "POST" }),
 
-  listRuns: () => request<{ runs: Run[]; running: number | null }>("/api/runs"),
+  listRuns: () => request<{ runs: Run[]; running: number | null; nextAt: string | null }>("/api/runs"),
   getRun: (id: number) => request<{ run: Run; sources: RunSource[] }>(`/api/runs/${id}`),
   triggerRun: () => request<{ runId: number | null; alreadyRunning: boolean }>("/api/runs/trigger", { method: "POST" }),
 
@@ -141,6 +144,13 @@ export function formatTime(iso: string | null | undefined): string {
   if (sameDay) return `today ${hm}`;
   if (yesterday) return `yesterday ${hm}`;
   return `${date.toLocaleDateString([], { month: "short", day: "numeric" })} ${hm}`;
+}
+
+export function formatClock(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
 export function formatDuration(ms: number): string {

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { db } from "../db/db";
-import { runOnce, runningRunId } from "../scheduler";
+import { nextRunAt, runOnce, runningRunId } from "../scheduler";
 
 const runs = new Hono();
 
@@ -11,7 +11,7 @@ runs.get("/", (c) => {
        FROM runs r ORDER BY r.id DESC LIMIT 100`,
     )
     .all();
-  return c.json({ runs: rows, running: runningRunId() });
+  return c.json({ runs: rows, running: runningRunId(), nextAt: nextRunAt() });
 });
 
 runs.get("/:id", (c) => {

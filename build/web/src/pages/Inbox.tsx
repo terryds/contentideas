@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { api, formatTime, TYPE_LABELS } from "../api";
+import { api, formatClock, formatTime } from "../api";
 import type { Entry, Run, SourceType } from "../api";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
@@ -99,6 +99,7 @@ export function Inbox() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [counts, setCounts] = useState<Partial<Record<SourceType, number>>>({});
   const [lastRun, setLastRun] = useState<Run | null>(null);
+  const [nextAt, setNextAt] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const pollTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -108,6 +109,7 @@ export function Inbox() {
       setEntries(data.entries);
       setCounts(Object.fromEntries(data.counts.map((c) => [c.source_type, c.n])));
       setLastRun(data.lastRun);
+      setNextAt(data.nextAt);
     } catch {
       /* banner handles unreachable; other errors leave the page as-is */
     }
@@ -153,7 +155,9 @@ export function Inbox() {
       <h1>Inbox</h1>
       <p className="page-note">
         Everything your taste filter matched, newest first.
-        {lastRun && <> Last check {formatTime(lastRun.finished_at)}.</>}
+        {lastRun && <> Last check {formatClock(lastRun.finished_at)}</>}
+        {nextAt && <> — next at {formatClock(nextAt)}</>}
+        {(lastRun || nextAt) && "."}
       </p>
 
       <div className="row" style={{ marginBottom: 24, gap: 8 }}>

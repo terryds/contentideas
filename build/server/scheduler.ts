@@ -1,10 +1,16 @@
-import { db, nowIso } from "./db/db";
+import { db, getSetting, nowIso } from "./db/db";
 import { rssFetcher } from "./fetchers/rss";
+import { hackerNewsFetcher } from "./fetchers/hackernews";
+import { youtubeFetcher } from "./fetchers/youtube";
+import { twitterFetcher } from "./fetchers/twitter";
 import { sourceLabel, type Fetcher, type SourceRow } from "./fetchers/types";
 
 // New source types register here (plus a type-select option in the Sources UI).
 const fetchers: Partial<Record<SourceRow["type"], Fetcher>> = {
   rss: rssFetcher,
+  hn: hackerNewsFetcher,
+  youtube: youtubeFetcher,
+  twitter: twitterFetcher,
 };
 
 const MAX_ATTEMPTS = 3;
@@ -12,11 +18,41 @@ const BACKOFF_MS = [0, 2_000, 5_000];
 
 let currentRunId: number | null = null;
 
-/** Called by the settings route after a save; re-registers cron when the interval changes (M1). */
+/* ---------- cron scheduling ---------- */
+
+// "1m" is a hidden test value (not offered in the UI) used to verify unattended runs.
+const INTERVAL_CRON: Record<string, string> = {
+  "1m": "* * * * *",
+  "15m": "*/15 * * * *",
+  "30m": "*/30 * * * *",
+  "1h": "0 * * * *",
+  "3h": "0 */3 * * *",
+};
+let cronJob: { stop(): void } | null = null;
+let currentInterval: string | null = null;
+
+export function registerSchedule(): void {
+  const interval = getSetting("check_interval") ?? "30m";
+  const expression = INTERVAL_CRON[interval] ?? INTERVAL_CRON["30m"];
+  if (cronJob && currentInterval === interval) return;
+  cronJob?.stop();
+  cronJob = Bun.cron(expression, () => {
+    runOnce("cron").catch((err) => console.error("[run] cron run crashed:", err));
+  });
+  currentInterval = interval;
+  console.log(`[scheduler] cron registered: every ${interval} (${expression})`);
+}
+
+/** Next cron firing. Null when nothing is scheduled. */
+export function nextRunAt(): string | null {
+  const expression = INTERVAL_CRON[currentInterval ?? ""];
+  if (!expression) return null;
+  return Bun.cron.parse(expression)?.toISOString() ?? null;
+}
+
+/** Called by the settings route after a save; re-registers cron when the interval changes. */
 export function onSettingsChanged(changed: Record<string, string>): void {
-  if ("check_interval" in changed) {
-    console.log(`[scheduler] interval changed to ${changed.check_interval}`);
-  }
+  if ("check_interval" in changed) registerSchedule();
 }
 
 export function runningRunId(): number | null {

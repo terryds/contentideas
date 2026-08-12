@@ -1,5 +1,6 @@
 import { Hono } from "hono";
-import { db, nowIso } from "../db/db";
+import { db } from "../db/db";
+import { nextRunAt } from "../scheduler";
 
 const entries = new Hono();
 
@@ -30,10 +31,10 @@ entries.get("/", (c) => {
     .all() as { source_type: string; n: number }[];
 
   const lastRun = db
-    .prepare("SELECT id, started_at, finished_at FROM runs WHERE finished_at IS NOT NULL ORDER BY id DESC LIMIT 1")
+    .prepare("SELECT * FROM runs WHERE finished_at IS NOT NULL ORDER BY id DESC LIMIT 1")
     .get();
 
-  return c.json({ entries: rows, counts, lastRun });
+  return c.json({ entries: rows, counts, lastRun, nextAt: nextRunAt() });
 });
 
 entries.get("/:id", (c) => {

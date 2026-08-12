@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, formatDuration, formatTime } from "../api";
+import { api, formatClock, formatDuration, formatTime } from "../api";
 import type { Run, RunSource } from "../api";
 import { Button } from "../components/Button";
 import { Chip } from "../components/Chip";
@@ -145,6 +145,7 @@ function RunRow({ run, running }: { run: RunWithCount; running: number | null })
 export function Runs() {
   const [runs, setRuns] = useState<RunWithCount[]>([]);
   const [running, setRunning] = useState<number | null>(null);
+  const [nextAt, setNextAt] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setInterval>>();
 
   const load = useCallback(async () => {
@@ -152,6 +153,7 @@ export function Runs() {
       const data = await api.listRuns();
       setRuns(data.runs as RunWithCount[]);
       setRunning(data.running);
+      setNextAt(data.nextAt);
     } catch {
       /* global banner */
     }
@@ -182,7 +184,9 @@ export function Runs() {
       {runs.length === 0 ? (
         <div className="card empty">
           <h2>No runs yet</h2>
-          <p className="t-small">Trigger a check to see per-source results here.</p>
+          <p className="t-small">
+            {nextAt ? `Next check at ${formatClock(nextAt)}.` : "Trigger a check to see per-source results here."}
+          </p>
           <Button onClick={runNow} style={{ marginTop: 8 }}>
             ▶ Run now
           </Button>

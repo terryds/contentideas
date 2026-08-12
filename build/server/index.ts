@@ -3,17 +3,20 @@ import { serveStatic } from "hono/bun";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { migrate, pruneOldRuns } from "./db/migrate";
+import { registerSchedule } from "./scheduler";
 import sources from "./routes/sources";
 import entries from "./routes/entries";
 import runs from "./routes/runs";
 import settings from "./routes/settings";
+import test from "./routes/test";
 
 // The one place the port lives. 4321 — unlikely to collide locally.
 export const PORT = 4321;
 
-// Boot order per plans/core.md: migrations → prune → (cron registration, M1) → listen.
+// Boot order per plans/core.md: migrations → prune → cron registration → listen.
 migrate();
 pruneOldRuns();
+registerSchedule();
 
 const app = new Hono();
 
@@ -26,6 +29,7 @@ app.route("/api/sources", sources);
 app.route("/api/entries", entries);
 app.route("/api/runs", runs);
 app.route("/api/settings", settings);
+app.route("/api/test", test);
 app.all("/api/*", (c) => c.json({ error: "Not found" }, 404));
 
 // Production: serve the built SPA from the same process. In dev, Vite serves the
