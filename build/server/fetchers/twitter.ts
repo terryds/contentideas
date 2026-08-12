@@ -14,13 +14,10 @@ function credentials(): { TWITTER_AUTH_TOKEN: string; TWITTER_CT0: string } {
 }
 
 async function runCli(args: string[], timeoutMs = 45_000): Promise<string> {
+  const env = { ...process.env, ...credentials() };
   let proc: ReturnType<typeof Bun.spawn>;
   try {
-    proc = Bun.spawn(["twitter-cli", ...args], {
-      env: { ...process.env, ...credentials() },
-      stdout: "pipe",
-      stderr: "pipe",
-    });
+    proc = Bun.spawn(["twitter-cli", ...args], { env, stdout: "pipe", stderr: "pipe" });
   } catch {
     throw new Error("twitter-cli not found on PATH — install it to fetch X profiles");
   }
