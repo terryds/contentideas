@@ -23,7 +23,8 @@ function healthCell(source: Source) {
     <>
       <Chip tone="bad">Failed ×3</Chip>{" "}
       <span className="t-small">
-        {hint.length > 60 ? hint.slice(0, 60) + "…" : hint} — <Link to="/runs">see run</Link>
+        {hint.length > 60 ? hint.slice(0, 60) + "…" : hint} —{" "}
+        <Link to={source.health_run_id ? `/runs?open=${source.health_run_id}` : "/runs"}>see run</Link>
       </span>
     </>
   );
@@ -31,17 +32,29 @@ function healthCell(source: Source) {
 
 export function Sources() {
   const [sources, setSources] = useState<Source[]>([]);
+  const [interval, setIntervalText] = useState<string | null>(null);
   const [type, setType] = useState<SourceType>("youtube");
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
 
+  const INTERVAL_TEXT: Record<string, string> = {
+    "1m": "every minute (test)",
+    "15m": "every 15 min",
+    "30m": "every 30 min",
+    "1h": "every hour",
+    "3h": "every 3 hours",
+  };
+
   const load = useCallback(async () => {
     try {
       setSources((await api.listSources()).sources);
+      const settings = await api.getSettings();
+      setIntervalText(INTERVAL_TEXT[settings.values.check_interval ?? ""] ?? null);
     } catch {
       /* global banner covers unreachable */
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -73,7 +86,7 @@ export function Sources() {
       <h1>Sources</h1>
       <p className="page-note">
         {sources.length
-          ? `${sources.length} source${sources.length === 1 ? "" : "s"} · YouTube goes through Floxy with a fresh IP per fetch.`
+          ? `${sources.length} source${sources.length === 1 ? "" : "s"}${interval ? ` · checked ${interval}` : ""} · YouTube goes through Floxy with a fresh IP per fetch.`
           : "Add your first source — the next run will pick it up."}
       </p>
 

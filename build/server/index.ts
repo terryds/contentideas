@@ -17,6 +17,14 @@ export const PORT = 4321;
 // Boot order per plans/core.md: migrations → prune → cron registration → listen.
 migrate();
 pruneOldRuns();
+
+// A run that was in flight when the process died would show "Running…" forever.
+import { db, nowIso } from "./db/db";
+db.prepare(
+  `UPDATE runs SET finished_at = ?, error_text = COALESCE(error_text || char(10), '') || 'Run interrupted by a server restart — entries stay pending and are picked up next run.'
+   WHERE finished_at IS NULL`,
+).run(nowIso());
+
 registerSchedule();
 
 const app = new Hono();

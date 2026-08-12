@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { api, formatClock, formatDuration, formatTime } from "../api";
 import type { Run, RunSource } from "../api";
 import { Button } from "../components/Button";
@@ -28,7 +28,15 @@ function hintFor(errorText: string): { text: string; link?: { to: string; label:
   return null;
 }
 
-function RunRow({ run, running }: { run: RunWithCount; running: number | null }) {
+function RunRow({
+  run,
+  running,
+  defaultOpen = false,
+}: {
+  run: RunWithCount;
+  running: number | null;
+  defaultOpen?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [sources, setSources] = useState<RunSource[] | null>(null);
 
@@ -39,6 +47,11 @@ function RunRow({ run, running }: { run: RunWithCount; running: number | null })
       setSources((await api.getRun(run.id)).sources);
     }
   };
+
+  useEffect(() => {
+    if (defaultOpen && !open) toggle();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultOpen]);
 
   const duration = run.finished_at
     ? formatDuration(new Date(run.finished_at).getTime() - new Date(run.started_at).getTime())
@@ -173,6 +186,8 @@ export function Runs() {
   const [runs, setRuns] = useState<RunWithCount[]>([]);
   const [running, setRunning] = useState<number | null>(null);
   const [nextAt, setNextAt] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
+  const openId = Number(searchParams.get("open")) || null;
   const timer = useRef<ReturnType<typeof setInterval>>();
 
   const load = useCallback(async () => {
@@ -219,7 +234,14 @@ export function Runs() {
           </Button>
         </div>
       ) : (
-        runs.map((run) => <RunRow key={`${run.id}-${run.finished_at ?? "live"}`} run={run} running={running} />)
+        runs.map((run) => (
+          <RunRow
+            key={`${run.id}-${run.finished_at ?? "live"}`}
+            run={run}
+            running={running}
+            defaultOpen={run.id === openId}
+          />
+        ))
       )}
 
       <p className="t-small" style={{ marginTop: 24 }}>

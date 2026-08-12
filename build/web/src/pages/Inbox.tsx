@@ -16,10 +16,20 @@ const FILTERS: { key: string; label: string }[] = [
 ];
 
 function sourceMeta(entry: Entry): string {
-  const time = entry.filtered_at && entry.filter_status === "matched"
-    ? `matched ${formatTime(entry.filtered_at)}`
-    : `added ${formatTime(entry.created_at)}`;
-  return time;
+  const parts: string[] = [];
+  // HN content's first line is "N points · M comments" — surface it on the card.
+  if (entry.source_type === "hn") {
+    const points = entry.content?.match(/^(\d+ points)/)?.[1];
+    if (points) parts.push(points);
+  }
+  if (entry.source_type === "youtube") parts.push("video");
+  parts.push(
+    entry.filtered_at && entry.filter_status === "matched"
+      ? `matched ${formatTime(entry.filtered_at)}`
+      : `added ${formatTime(entry.created_at)}`,
+  );
+  if (entry.source_type === "youtube" && entry.transcript) parts.push("transcript fetched");
+  return parts.join(" · ");
 }
 
 function EntryCard({
