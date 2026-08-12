@@ -121,7 +121,14 @@ export const api = {
       lastRun: Run | null;
       nextAt: string | null;
     }>(`/api/entries?filter=${encodeURIComponent(filter)}`),
-  getEntry: (id: string) => request<{ entry: Entry; thread: Thread | null }>(`/api/entries/${id}`),
+  getEntry: (id: string) =>
+    request<{ entry: Entry; thread: Thread | null; voiceCount: number }>(`/api/entries/${id}`),
+  draftThread: (entryId: number) =>
+    request<{ thread: Thread; voiceCount: number }>(`/api/entries/${entryId}/draft`, { method: "POST" }),
+  saveThread: (id: number, tweets: string[]) =>
+    request<{ ok: true }>(`/api/threads/${id}`, { method: "PUT", body: JSON.stringify({ draft_json: tweets }) }),
+  markPosted: (id: number) => request<{ ok: true }>(`/api/threads/${id}/posted`, { method: "POST" }),
+  unmarkPosted: (id: number) => request<{ ok: true }>(`/api/threads/${id}/unposted`, { method: "POST" }),
   dismissEntry: (id: number) => request<{ ok: true }>(`/api/entries/${id}/dismiss`, { method: "POST" }),
   restoreEntry: (id: number) => request<{ ok: true }>(`/api/entries/${id}/restore`, { method: "POST" }),
 

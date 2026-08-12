@@ -45,13 +45,16 @@ export interface GeneratedThread {
   voiceCount: number;
 }
 
-export async function generateThread(entry: {
+interface GenerationInput {
   title: string;
   url: string | null;
   content: string | null;
   transcript: string | null;
   source_label: string;
-}): Promise<GeneratedThread> {
+}
+
+/** Exposed separately so the exact `claude -p` input is inspectable/testable. */
+export function composeGenerationPrompt(entry: GenerationInput): { prompt: string; voiceCount: number } {
   const generationPrompt = getSetting("generation_prompt") ?? "";
   const examples = voiceExamples();
 
@@ -91,8 +94,11 @@ export async function generateThread(entry: {
     "No markdown, no commentary, no numbering inside the tweets.",
   );
 
-  const tweets = await runClaude(sections.filter((s) => s !== "").join("\n"), parseThread, {
-    timeoutMs: 120_000,
-  });
-  return { tweets, voiceCount: examples.length };
+  return { prompt: sections.filter((s) => s !== "").join("\n"), voiceCount: examples.length };
+}
+
+export async function generateThread(entry: GenerationInput): Promise<GeneratedThread> {
+  const { prompt, voiceCount } = composeGenerationPrompt(entry);
+  const tweets = await runClaude(prompt, parseThread, { timeoutMs: 120_000 });
+  return { tweets, voiceCount };
 }

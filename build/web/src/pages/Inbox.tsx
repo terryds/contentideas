@@ -69,7 +69,7 @@ function EntryCard({
         ) : drafted ? (
           <Button onClick={() => navigate(`/item/${entry.id}`)}>Open draft</Button>
         ) : (
-          <Button variant="primary" onClick={() => navigate(`/item/${entry.id}`)}>
+          <Button variant="primary" onClick={() => navigate(`/item/${entry.id}?draft=1`)}>
             Draft thread
           </Button>
         )}

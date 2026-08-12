@@ -6,6 +6,7 @@ import { migrate, pruneOldRuns } from "./db/migrate";
 import { registerSchedule } from "./scheduler";
 import sources from "./routes/sources";
 import entries from "./routes/entries";
+import threads from "./routes/threads";
 import runs from "./routes/runs";
 import settings from "./routes/settings";
 import test from "./routes/test";
@@ -27,6 +28,7 @@ app.onError((err, c) => {
 
 app.route("/api/sources", sources);
 app.route("/api/entries", entries);
+app.route("/api", threads); // /api/entries/:id/draft + /api/threads/:id*
 app.route("/api/runs", runs);
 app.route("/api/settings", settings);
 app.route("/api/test", test);

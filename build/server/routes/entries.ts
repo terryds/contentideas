@@ -46,7 +46,14 @@ entries.get("/:id", (c) => {
   const thread = db
     .prepare("SELECT * FROM threads WHERE entry_id = ? ORDER BY id DESC LIMIT 1")
     .get(c.req.param("id"));
-  return c.json({ entry: row, thread: thread ?? null });
+  const pool = db
+    .prepare("SELECT COUNT(*) AS n FROM threads WHERE final_text IS NOT NULL AND posted_at IS NOT NULL")
+    .get() as { n: number };
+  const configured = Number(
+    (db.prepare("SELECT value FROM settings WHERE key = 'voice_examples_count'").get() as { value: string } | null)
+      ?.value ?? "5",
+  );
+  return c.json({ entry: row, thread: thread ?? null, voiceCount: Math.min(pool.n, configured) });
 });
 
 entries.post("/:id/dismiss", (c) => {
