@@ -208,7 +208,17 @@ function appendRunError(runId: number, text: string): void {
 async function filterPass(runId: number): Promise<void> {
   const pending = db
     .prepare("SELECT * FROM entries WHERE filter_status = 'pending' ORDER BY id")
-    .all() as { id: number; source_id: number; title: string; source_label: string; content: string | null }[];
+    .all() as {
+    id: number;
+    source_id: number;
+    source_type: string;
+    external_id: string;
+    url: string | null;
+    title: string;
+    source_label: string;
+    content: string | null;
+    transcript: string | null;
+  }[];
   if (pending.length === 0) return;
 
   let consecutiveErrors = 0;
@@ -225,6 +235,21 @@ async function filterPass(runId: number): Promise<void> {
         db.prepare(
           "UPDATE run_sources SET matched_count = matched_count + 1 WHERE run_id = ? AND source_id = ?",
         ).run(runId, entry.source_id);
+        // YouTube: fetch the transcript now, through the proxy. Failure never
+        // blocks the Telegram ping — drafting retries the fetch later.
+        if (entry.source_type === "youtube" && !entry.transcript) {
+          try {
+            const { fetchTranscriptForEntry } = await import("./fetchers/transcript");
+            const transcript = await fetchTranscriptForEntry(entry);
+            if (transcript) {
+              db.prepare("UPDATE entries SET transcript = ? WHERE id = ?").run(transcript, entry.id);
+            }
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            console.error(`[transcript] entry ${entry.id}: ${message}`);
+            appendRunError(runId, `Transcript fetch failed for "${entry.title.slice(0, 60)}":\n${message}\nWill retry when the thread is drafted.`);
+          }
+        }
       }
     } catch (err) {
       // Unparseable/errored verdict: entry stays pending, picked up next run.

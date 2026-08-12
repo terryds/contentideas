@@ -42,7 +42,12 @@ export async function resolveChannel(input: string): Promise<{ channelId: string
   });
   if (!res.ok) throw new Error(`Could not resolve ${handle}: YouTube returned HTTP ${res.status}`);
   const html = await res.text();
-  const found = html.match(/"channelId":"(UC[0-9A-Za-z_-]{22})"/) ?? html.match(/channel\/(UC[0-9A-Za-z_-]{22})/);
+  // externalId / og:url identify the page's own channel; a bare "channelId"
+  // match can belong to a related channel further down the page.
+  const found =
+    html.match(/"externalId":"(UC[0-9A-Za-z_-]{22})"/) ??
+    html.match(/property="og:url" content="https:\/\/www\.youtube\.com\/channel\/(UC[0-9A-Za-z_-]{22})"/) ??
+    html.match(/"channelId":"(UC[0-9A-Za-z_-]{22})"/);
   if (!found) throw new Error(`Could not find a channel id for ${handle} on its page`);
   return { channelId: found[1], handle };
 }
