@@ -5,6 +5,7 @@ import { db } from "./db";
 // Schema changes after M0 ship as additive steps appended to this list.
 const migrations: string[] = [
   schemaSql, // 1 — full initial schema
+  "ALTER TABLE runs ADD COLUMN error_text TEXT", // 2 — run-level errors (systematic filter failure, notify failures)
 ];
 
 const defaultSettings: Record<string, string> = {

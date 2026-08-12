@@ -10,6 +10,7 @@ type RunWithCount = Run & { sources_count: number };
 function runChip(run: RunWithCount, running: number | null) {
   if (run.id === running || !run.finished_at) return <Chip tone="warn">Running…</Chip>;
   if (run.failed_count > 0) return <Chip tone="bad">{run.failed_count} failed</Chip>;
+  if (run.error_text) return <Chip tone="bad">Failed</Chip>;
   return <Chip tone="good">OK</Chip>;
 }
 
@@ -63,6 +64,32 @@ function RunRow({ run, running }: { run: RunWithCount; running: number | null })
       </div>
       {open && (
         <div style={{ borderTop: "1px solid var(--line)", padding: "6px 20px 16px" }}>
+          {run.error_text && (
+            <>
+              <div
+                className="src"
+                style={{
+                  background: "var(--accent-bg)",
+                  color: "var(--accent)",
+                  borderRadius: 6,
+                  padding: "10px 14px",
+                  margin: "10px 0 4px",
+                  whiteSpace: "pre-wrap",
+                  lineHeight: 1.6,
+                }}
+              >
+                {run.error_text}
+              </div>
+              {hintFor(run.error_text) && (
+                <div className="t-small" style={{ marginBottom: 8 }}>
+                  {hintFor(run.error_text)!.text}
+                  {hintFor(run.error_text)!.link && (
+                    <Link to={hintFor(run.error_text)!.link!.to}>{hintFor(run.error_text)!.link!.label}</Link>
+                  )}
+                </div>
+              )}
+            </>
+          )}
           {!sources ? (
             <p className="t-small">Loading…</p>
           ) : sources.length === 0 ? (

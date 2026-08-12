@@ -4,6 +4,9 @@ import { hackerNewsFetcher } from "./fetchers/hackernews";
 import { youtubeFetcher } from "./fetchers/youtube";
 import { twitterFetcher } from "./fetchers/twitter";
 import { sourceLabel, type Fetcher, type SourceRow } from "./fetchers/types";
+import { filterEntry } from "./llm/filter";
+import { ClaudeUnavailableError } from "./llm/claude";
+import { sendMatch } from "./notify/telegram";
 
 // New source types register here (plus a type-select option in the Sources UI).
 const fetchers: Partial<Record<SourceRow["type"], Fetcher>> = {
@@ -181,12 +184,84 @@ export async function runOnce(trigger: "cron" | "manual"): Promise<number | null
       ).run(runId, source.id, sourceLabel(source), result.newCount, Date.now() - startedAt, result.attempts, result.status, result.errorText);
     }
 
+    await filterPass(runId);
+    await notifyPass(runId);
     finalizeRun(runId);
   } finally {
     currentRunId = null;
   }
   console.log(`[run] #${runId} finished`);
   return runId;
+}
+
+function appendRunError(runId: number, text: string): void {
+  db.prepare(
+    "UPDATE runs SET error_text = COALESCE(error_text || char(10), '') || ? WHERE id = ?",
+  ).run(text, runId);
+}
+
+/**
+ * Judge every pending entry — including leftovers from previous runs — against
+ * the taste prompt. Serial on purpose (keeps `claude -p` load sane; a busy
+ * first run taking minutes is acceptable and visible in run duration).
+ */
+async function filterPass(runId: number): Promise<void> {
+  const pending = db
+    .prepare("SELECT * FROM entries WHERE filter_status = 'pending' ORDER BY id")
+    .all() as { id: number; source_id: number; title: string; source_label: string; content: string | null }[];
+  if (pending.length === 0) return;
+
+  let consecutiveErrors = 0;
+  for (const entry of pending) {
+    try {
+      const verdict = await filterEntry(entry);
+      consecutiveErrors = 0;
+      db.prepare(
+        "UPDATE entries SET filter_status = ?, filter_reason = ?, filtered_at = ? WHERE id = ?",
+      ).run(verdict.matched ? "matched" : "skipped", verdict.reason, nowIso(), entry.id);
+      if (verdict.matched) {
+        // Attribute the match to this run's row for the entry's source (may be
+        // absent if the source was since paused/removed — that's fine).
+        db.prepare(
+          "UPDATE run_sources SET matched_count = matched_count + 1 WHERE run_id = ? AND source_id = ?",
+        ).run(runId, entry.source_id);
+      }
+    } catch (err) {
+      // Unparseable/errored verdict: entry stays pending, picked up next run.
+      console.error(`[filter] entry ${entry.id}:`, err);
+      if (err instanceof ClaudeUnavailableError) {
+        appendRunError(runId, err.message);
+        return; // systematic — no point trying the rest
+      }
+      consecutiveErrors += 1;
+      if (consecutiveErrors >= 3) {
+        appendRunError(runId, `Filter aborted after 3 consecutive errors — ${err instanceof Error ? err.message : err}. Entries remain pending and will be re-filtered next run.`);
+        return;
+      }
+    }
+  }
+}
+
+/**
+ * Telegram ping for every matched-but-unnotified entry. Notify only on the
+ * new→notified transition — a refilter can never re-notify. Send failure keeps
+ * state=new so it's resent next run.
+ */
+async function notifyPass(runId: number): Promise<void> {
+  const matches = db
+    .prepare("SELECT * FROM entries WHERE filter_status = 'matched' AND state = 'new' ORDER BY id")
+    .all() as { id: number; title: string; source_label: string; filter_reason: string | null; url: string | null }[];
+  for (const entry of matches) {
+    try {
+      await sendMatch(entry);
+      db.prepare("UPDATE entries SET state = 'notified' WHERE id = ? AND state = 'new'").run(entry.id);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[notify] entry ${entry.id}: ${message}`);
+      appendRunError(runId, `Telegram send failed for "${entry.title.slice(0, 60)}": ${message}`);
+      if (/not configured/i.test(message)) return; // no creds — every send would fail
+    }
+  }
 }
 
 function finalizeRun(runId: number): void {

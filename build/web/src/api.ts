@@ -80,6 +80,9 @@ export interface Run {
   new_count: number;
   matched_count: number;
   failed_count: number;
+  error_text: string | null;
+  sources_count?: number;
+  filtered_count?: number;
 }
 
 export interface RunSource {

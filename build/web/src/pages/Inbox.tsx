@@ -192,7 +192,7 @@ export function Inbox() {
           <h2>{filter === "dismissed" ? "Nothing dismissed" : "All caught up"}</h2>
           <p className="t-small">
             {lastRun
-              ? `Last check ${formatTime(lastRun.finished_at)} — ${lastRun.new_count} new entries, ${lastRun.matched_count} matched.`
+              ? `Nothing matched. Last check ${formatTime(lastRun.finished_at)} — ${lastRun.sources_count ?? 0} sources checked, ${lastRun.filtered_count ?? 0} entries filtered.`
               : "No checks have run yet. Add sources, then run a check."}
           </p>
           {filter !== "dismissed" && (

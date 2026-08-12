@@ -4,18 +4,17 @@ import { nextRunAt } from "../scheduler";
 
 const entries = new Hono();
 
-// Inbox feed. `filter` = all | youtube | twitter | hn | rss | dismissed.
-// Until the taste filter lands (M3) every non-dismissed entry is listed; the
-// mockup's matched-only view takes over once filter_status is being written.
+// Inbox feed — everything the taste filter matched. `filter` = all | youtube |
+// twitter | hn | rss | dismissed (dismissed hidden from every other view).
 entries.get("/", (c) => {
   const filter = c.req.query("filter") ?? "all";
 
-  let where = "state != 'dismissed'";
+  let where = "filter_status = 'matched' AND state != 'dismissed'";
   const params: string[] = [];
   if (filter === "dismissed") {
     where = "state = 'dismissed'";
   } else if (["youtube", "twitter", "hn", "rss"].includes(filter)) {
-    where = "state != 'dismissed' AND source_type = ?";
+    where = "filter_status = 'matched' AND state != 'dismissed' AND source_type = ?";
     params.push(filter);
   }
 
@@ -26,12 +25,16 @@ entries.get("/", (c) => {
   const counts = db
     .prepare(
       `SELECT source_type, COUNT(*) AS n FROM entries
-       WHERE state != 'dismissed' GROUP BY source_type`,
+       WHERE filter_status = 'matched' AND state != 'dismissed' GROUP BY source_type`,
     )
     .all() as { source_type: string; n: number }[];
 
   const lastRun = db
-    .prepare("SELECT * FROM runs WHERE finished_at IS NOT NULL ORDER BY id DESC LIMIT 1")
+    .prepare(
+      `SELECT r.*, (SELECT COUNT(*) FROM run_sources rs WHERE rs.run_id = r.id) AS sources_count,
+              (SELECT COUNT(*) FROM entries e WHERE e.filtered_at >= r.started_at) AS filtered_count
+       FROM runs r WHERE r.finished_at IS NOT NULL ORDER BY r.id DESC LIMIT 1`,
+    )
     .get();
 
   return c.json({ entries: rows, counts, lastRun, nextAt: nextRunAt() });
