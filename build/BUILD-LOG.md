@@ -127,3 +127,9 @@ Also: **Settings → Danger zone → "Clear history data"** (spec'd in plans/set
 **Fixed:** `transcript.ts` player call now uses the IOS client context + matching iOS UA on both the player and timedtext requests (watch-page fallback keeps a browser UA). Fresh-session-per-attempt unchanged.
 
 **Verified live:** `@aiDotEngineer`'s newest video fetched a 3,454-word `[mm:ss]`-blocked transcript through Floxy on attempt 1 — the exact video that failed 3/3 attempts before the fix. Suite 57/57, tsc clean.
+
+## Digest notifications (2026-08-20)
+
+**Owner feedback:** per-record Telegram messages read as spam. Reworked (spec first — plans/filter-notify.md, plans/trending.md): all of a run's matches go out as ONE bulleted digest — bold headline, source label hyperlinked to the original (Telegram HTML mode, previews off), the filter's reason as the summary line, reasons clipped at 200 chars, past 20 bullets an "…and N more — see your Inbox" overflow line under the 4096-char cap. Trending likewise: one digest per run covering every newly-crossed cluster, member source labels hyperlinked, deduped. Send failure records once on the run and leaves everything unmarked, so the whole digest resends next run; delivery marks all included entries/clusters in one transaction.
+
+**Verified:** composer unit tests (headline/link/summary shape, HTML escaping incl. attribute quotes, singular/plural headers, 20-bullet overflow, label dedupe) — suite 63/63, tsc clean. Real match digest + trending digest delivered to the owner's Telegram with correct rich formatting.

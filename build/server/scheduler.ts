@@ -6,7 +6,7 @@ import { twitterFetcher } from "./fetchers/twitter";
 import { INTERVAL_MS, sourceLabel, type Fetcher, type NewEntry, type SourceRow } from "./fetchers/types";
 import { filterEntry } from "./llm/filter";
 import { ClaudeUnavailableError } from "./llm/claude";
-import { sendMatch } from "./notify/telegram";
+import { sendMatchDigest } from "./notify/telegram";
 import { normalizeUrlKey, trendingPass } from "./trending/cluster";
 
 // New source types register here (plus a type-select option in the Sources UI).
@@ -280,24 +280,26 @@ async function filterPass(runId: number): Promise<void> {
 }
 
 /**
- * Telegram ping for every matched-but-unnotified entry. Notify only on the
- * new→notified transition — a refilter can never re-notify. Send failure keeps
- * state=new so it's resent next run.
+ * ONE Telegram digest for every matched-but-unnotified entry (anti-spam —
+ * never a message per record). Notify only on the new→notified transition —
+ * a refilter can never re-notify. Send failure keeps all of them state=new
+ * so the digest is resent next run.
  */
 async function notifyPass(runId: number): Promise<void> {
   const matches = db
     .prepare("SELECT * FROM entries WHERE filter_status = 'matched' AND state = 'new' ORDER BY id")
     .all() as { id: number; title: string; source_label: string; filter_reason: string | null; url: string | null }[];
-  for (const entry of matches) {
-    try {
-      await sendMatch(entry);
-      db.prepare("UPDATE entries SET state = 'notified' WHERE id = ? AND state = 'new'").run(entry.id);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(`[notify] entry ${entry.id}: ${message}`);
-      appendRunError(runId, `Telegram send failed for "${entry.title.slice(0, 60)}": ${message}`);
-      if (/not configured/i.test(message)) return; // no creds — every send would fail
-    }
+  if (matches.length === 0) return;
+  try {
+    await sendMatchDigest(matches);
+    const mark = db.prepare("UPDATE entries SET state = 'notified' WHERE id = ? AND state = 'new'");
+    db.transaction(() => {
+      for (const entry of matches) mark.run(entry.id);
+    })();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[notify] digest (${matches.length} matches): ${message}`);
+    appendRunError(runId, `Telegram send failed for ${matches.length} match${matches.length === 1 ? "" : "es"}: ${message}`);
   }
 }
 

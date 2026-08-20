@@ -15,7 +15,7 @@ Runs inside `runOnce()` after the filter pass, for every newly filtered entry (e
 
 - Find clusters with activity in the last **48 hours** (code constant) where the entry's `url_key` matches one of the cluster's `url_keys`, **or** ≥ 2 of its topic slugs overlap the cluster's slug set. Join the most recently active match (updating the cluster's slug union, url_keys, last_activity); otherwise create a new cluster seeded with this entry.
 - Cluster fields: canonical title = first member's title; slug union capped at 8 (stop absorbing new slugs past that — prevents mega-cluster drift).
-- **Notify:** when a cluster's **distinct source count** reaches the threshold (`trending_threshold` setting, integer, default 2) and `notified_at` is null → one Telegram message, then stamp `notified_at`. Never re-notify a cluster. Format: "📈 Trending in your sources — *<title>* — seen in hn:frontpage, yt:@fireship, rss:swyx" + links per member.
+- **Notify:** when a cluster's **distinct source count** reaches the threshold (`trending_threshold` setting, integer, default 2) and `notified_at` is null, it joins the run's **trending digest** — ONE Telegram message per run covering every newly-crossed cluster *(reworked 2026-08-20 — anti-spam)*: one bullet per cluster, **bold story title**, each member's source label hyperlinked to that member's URL. HTML mode, previews off. All included clusters stamped `notified_at` on successful send; never re-notified.
 - A cluster whose members all come from one source never notifies (distinct count is 1) but still exists in the dashboard.
 
 ## Dashboard

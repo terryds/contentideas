@@ -4,7 +4,7 @@
 // regardless of the members' taste verdicts.
 
 import { appendRunError, db, getSetting, nowIso } from "../db/db";
-import { sendTrending } from "../notify/telegram";
+import { sendTrendingDigest } from "../notify/telegram";
 
 export const CLUSTER_WINDOW_MS = 48 * 60 * 60 * 1000; // spec: code constant, not a setting
 const MIN_TOPIC_OVERLAP = 2;
@@ -195,21 +195,24 @@ export async function trendingPass(runId: number): Promise<void> {
       )
       .all(windowCutoff()) as ClusterRow[]
   ).filter((cluster) => distinctSourceCount(cluster.id) >= threshold);
+  if (due.length === 0) return;
 
-  for (const cluster of due) {
-    const members = clusterMembers(cluster.id);
-    try {
-      await sendTrending({
+  // ONE digest for every newly-crossed cluster (anti-spam). All stamped on
+  // success; a failed send leaves them unstamped for the next run's digest.
+  try {
+    await sendTrendingDigest(
+      due.map((cluster) => ({
         title: cluster.title,
-        sourceLabels: [...new Set(members.map((m) => m.source_label))],
-        links: members.filter((m) => m.url).map((m) => ({ label: m.source_label, url: m.url as string })),
-      });
-      db.prepare("UPDATE clusters SET notified_at = ? WHERE id = ?").run(nowIso(), cluster.id);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(`[trending] cluster ${cluster.id}: ${message}`);
-      appendRunError(runId, `Trending Telegram send failed for "${cluster.title.slice(0, 60)}": ${message}`);
-      if (/not configured/i.test(message)) return; // no creds — every send would fail
-    }
+        members: clusterMembers(cluster.id).map((m) => ({ label: m.source_label, url: m.url })),
+      })),
+    );
+    const stamp = db.prepare("UPDATE clusters SET notified_at = ? WHERE id = ?");
+    db.transaction(() => {
+      for (const cluster of due) stamp.run(nowIso(), cluster.id);
+    })();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[trending] digest (${due.length} clusters): ${message}`);
+    appendRunError(runId, `Trending Telegram send failed for ${due.length} stor${due.length === 1 ? "y" : "ies"}: ${message}`);
   }
 }
