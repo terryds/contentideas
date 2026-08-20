@@ -1,12 +1,13 @@
-import { db, getSetting, nowIso } from "./db/db";
+import { appendRunError, db, getSetting, nowIso } from "./db/db";
 import { rssFetcher } from "./fetchers/rss";
 import { hackerNewsFetcher } from "./fetchers/hackernews";
 import { youtubeFetcher } from "./fetchers/youtube";
 import { twitterFetcher } from "./fetchers/twitter";
-import { sourceLabel, type Fetcher, type SourceRow } from "./fetchers/types";
+import { sourceLabel, type Fetcher, type NewEntry, type SourceRow } from "./fetchers/types";
 import { filterEntry } from "./llm/filter";
 import { ClaudeUnavailableError } from "./llm/claude";
 import { sendMatch } from "./notify/telegram";
+import { normalizeUrlKey, trendingPass } from "./trending/cluster";
 
 // New source types register here (plus a type-select option in the Sources UI).
 const fetchers: Partial<Record<SourceRow["type"], Fetcher>> = {
@@ -115,15 +116,15 @@ function lastErrorHeader(error: string): string {
 }
 
 /** Insert fetched entries, deduped by (source_id, external_id). Returns how many were actually new. */
-function insertEntries(source: SourceRow, entries: { external_id: string; title: string; url: string; content: string }[]): number {
+function insertEntries(source: SourceRow, entries: NewEntry[]): number {
   const label = sourceLabel(source);
   const firstFetch =
     (db.prepare("SELECT COUNT(*) AS n FROM entries WHERE source_id = ?").get(source.id) as { n: number }).n === 0;
 
   const insert = db.prepare(
     `INSERT OR IGNORE INTO entries
-       (source_id, source_type, source_label, external_id, title, url, content, filter_status, filter_reason, filtered_at, state, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?)`,
+       (source_id, source_type, source_label, external_id, title, url, content, url_key, filter_status, filter_reason, filtered_at, state, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?)`,
   );
 
   let newCount = 0;
@@ -139,6 +140,7 @@ function insertEntries(source: SourceRow, entries: { external_id: string; title:
       const result = insert.run(
         source.id, source.type, label, entry.external_id,
         entry.title, entry.url, entry.content,
+        normalizeUrlKey(entry.embedded_url ?? entry.url),
         filterStatus, filterReason, filteredAt, now,
       );
       newCount += result.changes;
@@ -186,18 +188,13 @@ export async function runOnce(trigger: "cron" | "manual"): Promise<number | null
 
     await filterPass(runId);
     await notifyPass(runId);
+    await trendingPass(runId); // M7 — after individual pings; degrades the run, never fails it
     finalizeRun(runId);
   } finally {
     currentRunId = null;
   }
   console.log(`[run] #${runId} finished`);
   return runId;
-}
-
-function appendRunError(runId: number, text: string): void {
-  db.prepare(
-    "UPDATE runs SET error_text = COALESCE(error_text || char(10), '') || ? WHERE id = ?",
-  ).run(text, runId);
 }
 
 /**
@@ -227,8 +224,8 @@ async function filterPass(runId: number): Promise<void> {
       const verdict = await filterEntry(entry);
       consecutiveErrors = 0;
       db.prepare(
-        "UPDATE entries SET filter_status = ?, filter_reason = ?, filtered_at = ? WHERE id = ?",
-      ).run(verdict.matched ? "matched" : "skipped", verdict.reason, nowIso(), entry.id);
+        "UPDATE entries SET filter_status = ?, filter_reason = ?, filtered_at = ?, topics = ? WHERE id = ?",
+      ).run(verdict.matched ? "matched" : "skipped", verdict.reason, nowIso(), JSON.stringify(verdict.topics), entry.id);
       if (verdict.matched) {
         // Attribute the match to this run's row for the entry's source (may be
         // absent if the source was since paused/removed — that's fine).

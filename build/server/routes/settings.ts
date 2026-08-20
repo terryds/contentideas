@@ -20,6 +20,7 @@ export const PLAIN_KEYS = [
   "taste_prompt",
   "generation_prompt",
   "voice_examples_count",
+  "trending_threshold",
 ] as const;
 
 settings.get("/", (c) => {
@@ -47,6 +48,8 @@ settings.put("/", async (c) => {
       return c.json({ error: "Interval must be one of 15m, 30m, 1h, 3h" }, 400);
     if (key === "voice_examples_count" && !["3", "5", "10"].includes(value))
       return c.json({ error: "Voice examples count must be 3, 5, or 10" }, 400);
+    if (key === "trending_threshold" && !/^[2-9]$/.test(value))
+      return c.json({ error: "Trending threshold must be a number from 2 to 9" }, 400);
     updates.push([key, value]);
   }
 

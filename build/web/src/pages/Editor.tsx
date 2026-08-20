@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api, formatTime } from "../api";
-import type { Entry, Thread } from "../api";
+import type { Cluster, ClusterMember, Entry, Thread } from "../api";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 
@@ -9,10 +9,19 @@ function wordCount(text: string): string {
   return text.split(/\s+/).filter(Boolean).length.toLocaleString();
 }
 
-export function Editor() {
+function sourceLink(type: string): string {
+  return type === "youtube" ? "Watch on YouTube ↗" : type === "hn" ? "Open on HN ↗" : "Open source ↗";
+}
+
+// One editor, two subjects: a single entry (/item/:id) or a trending cluster
+// (/cluster/:id — M7). The draft column is identical; the header and source
+// panel differ.
+export function Editor({ clusterMode = false }: { clusterMode?: boolean }) {
   const { id } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const [entry, setEntry] = useState<Entry | null>(null);
+  const [cluster, setCluster] = useState<Cluster | null>(null);
+  const [members, setMembers] = useState<ClusterMember[]>([]);
   const [tweets, setTweets] = useState<string[] | null>(null);
   const [threadId, setThreadId] = useState<number | null>(null);
   const [posted, setPosted] = useState(false);
@@ -37,37 +46,56 @@ export function Editor() {
     }
   };
 
-  const generate = useCallback(async (entryId: number) => {
-    setGenerating(true);
-    setGenError(null);
-    try {
-      const result = await api.draftThread(entryId);
-      applyThread(result.thread);
-      setVoiceCount(result.voiceCount);
-    } catch (err) {
-      setGenError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setGenerating(false);
-    }
-  }, []);
+  const generate = useCallback(
+    async (subjectId: number) => {
+      setGenerating(true);
+      setGenError(null);
+      try {
+        const result = clusterMode ? await api.draftClusterThread(subjectId) : await api.draftThread(subjectId);
+        applyThread(result.thread);
+        setVoiceCount(result.voiceCount);
+      } catch (err) {
+        setGenError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setGenerating(false);
+      }
+    },
+    [clusterMode],
+  );
 
   useEffect(() => {
     if (!id) return;
-    api
-      .getEntry(id)
-      .then((data) => {
-        setEntry(data.entry);
-        applyThread(data.thread);
-        setVoiceCount(data.voiceCount);
-        if (searchParams.get("draft") === "1" && !data.thread && !autoStarted.current) {
-          autoStarted.current = true;
-          setSearchParams({}, { replace: true });
-          generate(data.entry.id);
-        }
-      })
-      .catch((err) => setLoadError(err instanceof Error ? err.message : String(err)));
+    const maybeAutoStart = (subjectId: number, thread: Thread | null) => {
+      if (searchParams.get("draft") === "1" && !thread && !autoStarted.current) {
+        autoStarted.current = true;
+        setSearchParams({}, { replace: true });
+        generate(subjectId);
+      }
+    };
+    if (clusterMode) {
+      api
+        .getCluster(id)
+        .then((data) => {
+          setCluster(data.cluster);
+          setMembers(data.members);
+          applyThread(data.thread);
+          setVoiceCount(data.voiceCount);
+          maybeAutoStart(data.cluster.id, data.thread);
+        })
+        .catch((err) => setLoadError(err instanceof Error ? err.message : String(err)));
+    } else {
+      api
+        .getEntry(id)
+        .then((data) => {
+          setEntry(data.entry);
+          applyThread(data.thread);
+          setVoiceCount(data.voiceCount);
+          maybeAutoStart(data.entry.id, data.thread);
+        })
+        .catch((err) => setLoadError(err instanceof Error ? err.message : String(err)));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [id, clusterMode]);
 
   const scheduleSave = (next: string[]) => {
     setTweets(next);
@@ -84,10 +112,12 @@ export function Editor() {
     }, 800);
   };
 
+  const subjectId = clusterMode ? cluster?.id : entry?.id;
+
   const regenerate = () => {
-    if (!entry) return;
+    if (subjectId == null) return;
     if (tweets && !confirm("Regenerate the thread? Your edits to the current draft will be replaced.")) return;
-    generate(entry.id);
+    generate(subjectId);
   };
 
   const copyAll = async () => {
@@ -121,69 +151,122 @@ export function Editor() {
         <Link to="/">← Back to Inbox</Link>
       </main>
     );
-  if (!entry)
+  if (!entry && !cluster)
     return (
       <main>
         <p className="t-small">Loading…</p>
       </main>
     );
 
-  const linkLabel =
-    entry.source_type === "youtube" ? "Watch on YouTube ↗" : entry.source_type === "hn" ? "Open on HN ↗" : "Open source ↗";
-
   return (
     <main>
       <div className="t-small" style={{ marginBottom: 16 }}>
         <Link to="/">← Inbox</Link>
       </div>
-      <h1 style={{ fontSize: 24, lineHeight: 1.2 }}>{entry.title}</h1>
-      <div className="t-small">
-        <span className="src">{entry.source_label}</span>
-        {" · "}
-        {entry.filtered_at ? `matched ${formatTime(entry.filtered_at)}` : `added ${formatTime(entry.created_at)}`}
-        {entry.url && (
-          <>
+
+      {clusterMode && cluster ? (
+        <>
+          <h1 style={{ fontSize: 24, lineHeight: 1.2 }}>{cluster.title}</h1>
+          <div className="t-small">
+            <span className="chip chip-warn">📈 Trending</span>
             {" · "}
-            <a href={entry.url} target="_blank" rel="noreferrer">
-              {linkLabel}
-            </a>
+            {cluster.sources_count} sources
+            {" · first seen "}
+            {formatTime(cluster.first_seen)}
+            {" · last "}
+            {formatTime(cluster.last_activity)}
+          </div>
+        </>
+      ) : (
+        entry && (
+          <>
+            <h1 style={{ fontSize: 24, lineHeight: 1.2 }}>{entry.title}</h1>
+            <div className="t-small">
+              <span className="src">{entry.source_label}</span>
+              {" · "}
+              {entry.filtered_at ? `matched ${formatTime(entry.filtered_at)}` : `added ${formatTime(entry.created_at)}`}
+              {entry.url && (
+                <>
+                  {" · "}
+                  <a href={entry.url} target="_blank" rel="noreferrer">
+                    {sourceLink(entry.source_type)}
+                  </a>
+                </>
+              )}
+            </div>
           </>
-        )}
-      </div>
+        )
+      )}
 
       <div className="cols">
         <div>
-          <Card>
-            {entry.filter_reason && (
-              <>
-                <p className="sec-lbl">Filter's take</p>
-                <p style={{ margin: "0 0 20px", maxWidth: "60ch" }}>{entry.filter_reason}</p>
-              </>
-            )}
-            {entry.transcript ? (
-              <>
-                <p className="sec-lbl">
-                  Transcript{" "}
-                  <span style={{ textTransform: "none", letterSpacing: 0 }}>
-                    · fetched via proxy, {wordCount(entry.transcript)} words
-                  </span>
-                </p>
-                <div className="transcript">{entry.transcript}</div>
-              </>
-            ) : (
-              <>
-                <p className="sec-lbl">Source material</p>
-                <p style={{ margin: 0, maxWidth: "60ch", whiteSpace: "pre-wrap" }}>
-                  {entry.content || "No summary captured for this entry."}
-                </p>
-                {entry.source_type === "youtube" && (
-                  <p className="t-small" style={{ marginTop: 12 }}>
-                    No transcript yet — it will be fetched (via the proxy) when you draft the thread.
-                  </p>
+          {clusterMode ? (
+            <Card>
+              <p className="sec-lbl">
+                The takes <span style={{ textTransform: "none", letterSpacing: 0 }}>· every source carrying this story</span>
+              </p>
+              {members.map((member) => (
+                <div key={member.id} className="cluster-member">
+                  <div className="t-small">
+                    <span className="src">{member.source_label}</span>
+                    {member.filter_status === "skipped" && " · skipped by your filter"}
+                  </div>
+                  <div style={{ fontWeight: 600, margin: "2px 0 4px" }}>{member.title}</div>
+                  <div className="t-small">
+                    {member.url && (
+                      <a href={member.url} target="_blank" rel="noreferrer">
+                        {sourceLink(member.source_type)}
+                      </a>
+                    )}
+                    {member.transcript && <> · transcript, {wordCount(member.transcript)} words</>}
+                  </div>
+                  {member.content && (
+                    <p className="t-small" style={{ margin: "6px 0 0", whiteSpace: "pre-wrap" }}>
+                      {member.content.slice(0, 400)}
+                      {member.content.length > 400 ? "…" : ""}
+                    </p>
+                  )}
+                </div>
+              ))}
+              <p className="t-small" style={{ margin: "12px 0 0" }}>
+                Drafting uses every take above — transcripts included — as material for one thread.
+              </p>
+            </Card>
+          ) : (
+            entry && (
+              <Card>
+                {entry.filter_reason && (
+                  <>
+                    <p className="sec-lbl">Filter's take</p>
+                    <p style={{ margin: "0 0 20px", maxWidth: "60ch" }}>{entry.filter_reason}</p>
+                  </>
                 )}
-              </>
-            )}
-          </Card>
+                {entry.transcript ? (
+                  <>
+                    <p className="sec-lbl">
+                      Transcript{" "}
+                      <span style={{ textTransform: "none", letterSpacing: 0 }}>
+                        · fetched via proxy, {wordCount(entry.transcript)} words
+                      </span>
+                    </p>
+                    <div className="transcript">{entry.transcript}</div>
+                  </>
+                ) : (
+                  <>
+                    <p className="sec-lbl">Source material</p>
+                    <p style={{ margin: 0, maxWidth: "60ch", whiteSpace: "pre-wrap" }}>
+                      {entry.content || "No summary captured for this entry."}
+                    </p>
+                    {entry.source_type === "youtube" && (
+                      <p className="t-small" style={{ marginTop: 12 }}>
+                        No transcript yet — it will be fetched (via the proxy) when you draft the thread.
+                      </p>
+                    )}
+                  </>
+                )}
+              </Card>
+            )
+          )}
         </div>
 
         <div>
@@ -206,7 +289,7 @@ export function Editor() {
               <p className="src" style={{ color: "var(--accent)", whiteSpace: "pre-wrap", margin: "0 0 16px" }}>
                 {genError}
               </p>
-              <Button variant="primary" onClick={() => generate(entry.id)} disabled={generating}>
+              <Button variant="primary" onClick={() => subjectId != null && generate(subjectId)} disabled={generating}>
                 Retry
               </Button>
             </Card>
@@ -221,9 +304,9 @@ export function Editor() {
               ) : (
                 <>
                   <p className="t-small" style={{ margin: "0 0 16px" }}>
-                    No draft yet for this item.
+                    {clusterMode ? "No draft yet for this story." : "No draft yet for this item."}
                   </p>
-                  <Button variant="primary" onClick={() => generate(entry.id)}>
+                  <Button variant="primary" onClick={() => subjectId != null && generate(subjectId)}>
                     Draft thread
                   </Button>
                 </>

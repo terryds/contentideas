@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "concurrently -k -n server,web \"bun --watch server/index.ts\" \"vite --config web/vite.config.ts\"",
     "build": "vite build --config web/vite.config.ts",
-    "start": "bun server/index.ts"
+    "start": "bun server/index.ts",
+    "test": "bun test test/unit test/integration",
+    "test:live": "LIVE=1 bun test --timeout 120000 test/live"
   },
   "dependencies": {
     "fast-xml-parser": "^4.5.0",

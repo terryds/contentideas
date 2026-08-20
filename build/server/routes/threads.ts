@@ -79,7 +79,7 @@ threads.put("/threads/:id", async (c) => {
 // Mark as posted: the current edited text becomes a voice example.
 threads.post("/threads/:id/posted", (c) => {
   const thread = db.prepare("SELECT * FROM threads WHERE id = ?").get(c.req.param("id")) as
-    | { id: number; entry_id: number; draft_json: string }
+    | { id: number; entry_id: number | null; draft_json: string }
     | null;
   if (!thread) return c.json({ error: "Thread not found" }, 404);
   const tweets = JSON.parse(thread.draft_json) as string[];
@@ -87,20 +87,25 @@ threads.post("/threads/:id/posted", (c) => {
   db.prepare("UPDATE threads SET final_text = ?, posted_at = ?, updated_at = ? WHERE id = ?").run(
     finalText, nowIso(), nowIso(), thread.id,
   );
-  db.prepare("UPDATE entries SET state = 'posted' WHERE id = ?").run(thread.entry_id);
+  // Cluster threads (entry_id null) have no single entry; members keep their states.
+  if (thread.entry_id !== null) {
+    db.prepare("UPDATE entries SET state = 'posted' WHERE id = ?").run(thread.entry_id);
+  }
   return c.json({ ok: true, voicePoolSize: voiceExamples().length });
 });
 
 // Cheap undo (spec open question, included since trivial).
 threads.post("/threads/:id/unposted", (c) => {
   const thread = db.prepare("SELECT * FROM threads WHERE id = ?").get(c.req.param("id")) as
-    | { id: number; entry_id: number }
+    | { id: number; entry_id: number | null }
     | null;
   if (!thread) return c.json({ error: "Thread not found" }, 404);
   db.prepare("UPDATE threads SET final_text = NULL, posted_at = NULL, updated_at = ? WHERE id = ?").run(
     nowIso(), thread.id,
   );
-  db.prepare("UPDATE entries SET state = 'drafted' WHERE id = ?").run(thread.entry_id);
+  if (thread.entry_id !== null) {
+    db.prepare("UPDATE entries SET state = 'drafted' WHERE id = ?").run(thread.entry_id);
+  }
   return c.json({ ok: true });
 });
 

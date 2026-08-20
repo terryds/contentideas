@@ -30,3 +30,8 @@ One line per decision + why. Append-only.
 - [spec] secrets are write-only over the API (GET returns presence, not values) — dashboard never round-trips credentials
 - [spec] prompts split: user's taste/voice text in settings, output contracts (MATCH/SKIP, JSON array) enforced in code — customization can't break parsing
 - [spec] roadmap M0 walking skeleton (RSS e2e) → M1 scheduler+runs+HN → M2 settings → M3 filter+Telegram → M4 thread studio → M5 YouTube/Floxy → M6 Twitter+polish
+- [v1.1] cross-source trending: two-tier identity (normalized URL match + topic-slug overlap from the existing filter claude -p call — no extra API calls) — cheapest path to "same story, different sources"
+- [v1.1] trending notifies regardless of taste-filter verdict — frequency is its own signal; threshold configurable (default 2 sources); 48h clustering window as a code constant
+- [v1.1] notify once per cluster at threshold crossing, never per new member — anti-spam
+- [v1.2] tests in three layers: unit (fixtures), integration (temp SQLite + localhost fixture feed + stubbed claude bin), live (opt-in, owner's real sources) — deterministic fast suite, flaky-by-nature checks quarantined behind LIVE
+- [v1.2] full-pipeline e2e lives in the integration layer with stubs; the live layer only smoke-tests external boundaries — a live failure then points at exactly one integration

@@ -1,16 +1,54 @@
 import schemaSql from "./schema.sql" with { type: "text" };
 import { db } from "./db";
+import { normalizeUrlKey, CLUSTER_WINDOW_MS } from "../trending/cluster";
 
 // Idempotent, numbered migrations tracked via PRAGMA user_version.
 // Schema changes after M0 ship as additive steps appended to this list.
 const migrations: string[] = [
   schemaSql, // 1 — full initial schema
   "ALTER TABLE runs ADD COLUMN error_text TEXT", // 2 — run-level errors (systematic filter failure, notify failures)
+  // 3 — M7 cross-source trending: story identity on entries, clusters, and
+  // cluster-drafted threads (threads rebuilt so exactly one of entry_id /
+  // cluster_id is set — SQLite can't relax NOT NULL in place).
+  `
+  ALTER TABLE entries ADD COLUMN topics TEXT;
+  ALTER TABLE entries ADD COLUMN url_key TEXT;
+  CREATE TABLE clusters (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    title         TEXT NOT NULL,
+    slugs         TEXT NOT NULL DEFAULT '[]',
+    url_keys      TEXT NOT NULL DEFAULT '[]',
+    first_seen    TEXT NOT NULL,
+    last_activity TEXT NOT NULL,
+    notified_at   TEXT,
+    dismissed_at  TEXT
+  );
+  CREATE TABLE cluster_entries (
+    cluster_id INTEGER NOT NULL,
+    entry_id   INTEGER NOT NULL,
+    UNIQUE (cluster_id, entry_id)
+  );
+  CREATE TABLE threads_new (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    entry_id   INTEGER,
+    cluster_id INTEGER,
+    draft_json TEXT NOT NULL,
+    final_text TEXT,
+    posted_at  TEXT,
+    updated_at TEXT NOT NULL,
+    CHECK ((entry_id IS NULL) != (cluster_id IS NULL))
+  );
+  INSERT INTO threads_new (id, entry_id, draft_json, final_text, posted_at, updated_at)
+    SELECT id, entry_id, draft_json, final_text, posted_at, updated_at FROM threads;
+  DROP TABLE threads;
+  ALTER TABLE threads_new RENAME TO threads;
+  `,
 ];
 
 const defaultSettings: Record<string, string> = {
   check_interval: "30m",
   voice_examples_count: "5",
+  trending_threshold: "2",
   taste_prompt:
     "You are my content scout. I write threads for indie hackers and AI-curious developers. " +
     "Match entries about: AI coding economics and real cost breakdowns, solo-founder pricing and monetization, " +
@@ -22,17 +60,38 @@ const defaultSettings: Record<string, string> = {
     "no hashtags, no emoji except sparingly in tweet 1. End with one practical takeaway, not a summary.",
 };
 
-export function migrate(): void {
-  const current = (db.query("PRAGMA user_version").get() as { user_version: number }).user_version;
+/** Test seam: run the migration sequence against any Database handle. */
+export function migrateDb(database: import("bun:sqlite").Database): void {
+  const current = (database.query("PRAGMA user_version").get() as { user_version: number }).user_version;
   for (let i = current; i < migrations.length; i++) {
-    db.transaction(() => {
-      db.exec(migrations[i]);
-      db.exec(`PRAGMA user_version = ${i + 1}`);
+    database.transaction(() => {
+      database.exec(migrations[i]);
+      database.exec(`PRAGMA user_version = ${i + 1}`);
     })();
     console.log(`[migrate] applied migration ${i + 1}`);
   }
-  const seed = db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)");
+  const seed = database.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)");
   for (const [key, value] of Object.entries(defaultSettings)) seed.run(key, value);
+  backfillUrlKeys(database);
+}
+
+export function migrate(): void {
+  migrateDb(db);
+}
+
+// M7 backfill: entries filtered before trending shipped have no url_key.
+// Compute it for the clustering window only (48h) — older entries can never
+// join a cluster anyway. Topics stay empty for them (the URL tier still works).
+function backfillUrlKeys(database: import("bun:sqlite").Database): void {
+  const cutoff = new Date(Date.now() - CLUSTER_WINDOW_MS).toISOString();
+  const rows = database
+    .prepare("SELECT id, url FROM entries WHERE url_key IS NULL AND url IS NOT NULL AND created_at >= ?")
+    .all(cutoff) as { id: number; url: string }[];
+  const update = database.prepare("UPDATE entries SET url_key = ? WHERE id = ?");
+  for (const row of rows) {
+    const key = normalizeUrlKey(row.url);
+    if (key) update.run(key, row.id);
+  }
 }
 
 export function pruneOldRuns(): void {

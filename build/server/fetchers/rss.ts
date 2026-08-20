@@ -22,6 +22,12 @@ function stripHtml(html: string): string {
   return html
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/g, " ")
+    // html-escaped content (Atom type="html") arrives double-encoded; decode the common entities
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#0?39;|&apos;/g, "'")
     .replace(/\s+/g, " ")
     .trim();
 }

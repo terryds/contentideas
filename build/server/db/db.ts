@@ -2,7 +2,8 @@ import { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
-const dataDir = join(import.meta.dir, "..", "..", "data");
+// Overridable so tests write to a throwaway dir, never the real database.
+const dataDir = process.env.CONTENT_ENGINE_DATA_DIR ?? join(import.meta.dir, "..", "..", "data");
 mkdirSync(dataDir, { recursive: true });
 
 export const db = new Database(join(dataDir, "content-engine.db"));
@@ -18,6 +19,12 @@ export function getSetting(key: string): string | null {
     | { value: string | null }
     | null;
   return row?.value ?? null;
+}
+
+export function appendRunError(runId: number, text: string): void {
+  db.prepare(
+    "UPDATE runs SET error_text = COALESCE(error_text || char(10), '') || ? WHERE id = ?",
+  ).run(text, runId);
 }
 
 export function setSetting(key: string, value: string | null): void {

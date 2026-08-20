@@ -1,0 +1,43 @@
+{
+  "ok": true,
+  "schema_version": "1",
+  "data": [
+    {
+      "id": "1001",
+      "text": "Charging more as a solo founder: my exact numbers after doubling prices.",
+      "author": { "screenName": "levelsio" },
+      "urls": [],
+      "isRetweet": false
+    },
+    {
+      "id": "1002",
+      "text": "Great analysis of local-first sync engines here",
+      "urls": [{ "expandedUrl": "https://example.com/local-first?utm_source=t.co" }],
+      "isRetweet": false
+    },
+    {
+      "id": "1003",
+      "text": "Original take on something",
+      "isRetweet": true,
+      "retweetedBy": "levelsio"
+    },
+    {
+      "id": "1004",
+      "text": "@someone replying to a thread",
+      "isRetweet": false
+    },
+    {
+      "id": "1005",
+      "text": "RT @someone: legacy retweet text",
+      "isRetweet": false
+    },
+    {
+      "id": "1006",
+      "text": "Quoting something interesting",
+      "isRetweet": false,
+      "quotedTweet": { "text": "The original quoted wisdom.", "author": { "screenName": "swyx" } }
+    },
+    { "id": "", "text": "missing id must be skipped" },
+    { "id": "1007", "text": "" }
+  ]
+}

@@ -17,6 +17,10 @@
 11. **Settings page** — Floxy, Twitter, Telegram credentials, both prompts, schedule; each credential block has a test button.
 12. **Cron-run history** — every run with per-source outcomes, attempt traces, and errors.
 
+## v1.1 (added after first build)
+
+13. **Cross-source trending** — when the same story appears in N distinct sources (configurable, default 2) within 48h, notify via Telegram regardless of the taste verdict; the Inbox shows the cluster with a draft-from-cluster action.
+
 ## Not doing
 
 **Later (parked):** "Post it" button publishing via twitter-cli · voice-guide distillation from edit deltas · daily digest mode · idea→tweet performance tracking · other output formats · multiple taste profiles · per-source filter prompts · thumbs up/down filter feedback · Reddit or other source types.
@@ -33,5 +37,7 @@
 - [plans/threads.md](plans/threads.md) — thread generation, draft editor, posted-finals voice pool
 - [plans/sources.md](plans/sources.md) — source CRUD and health reporting
 - [plans/settings.md](plans/settings.md) — settings storage, secrets, test endpoints
+- [plans/trending.md](plans/trending.md) — cross-source story clustering and trending notifications (v1.1, M7)
+- [plans/testing.md](plans/testing.md) — automated test suite: unit/integration/live layers (v1.2, M8)
 
 Reference material (not part of the spec, but linked from plans): visual system in `../planning/3-design/` (brand.md + styleguide.html), throwaway mockups in `../planning/4-mockups/`, full architecture rationale in `../planning/5-architecture/architecture.md`, decision log in `../planning/decisions.md`.

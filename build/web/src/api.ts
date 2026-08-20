@@ -65,11 +65,37 @@ export interface Entry {
 
 export interface Thread {
   id: number;
-  entry_id: number;
+  entry_id: number | null;
+  cluster_id: number | null;
   draft_json: string;
   final_text: string | null;
   posted_at: string | null;
   updated_at: string;
+}
+
+export interface ClusterMember {
+  id: number;
+  title: string;
+  url: string | null;
+  content?: string | null;
+  transcript?: string | null;
+  source_label: string;
+  source_type: SourceType;
+  filter_status: "pending" | "matched" | "skipped";
+  filter_reason?: string | null;
+  state: Entry["state"];
+}
+
+export interface Cluster {
+  id: number;
+  title: string;
+  first_seen: string;
+  last_activity: string;
+  notified_at: string | null;
+  dismissed_at: string | null;
+  sources_count: number;
+  members: ClusterMember[];
+  thread_id?: number | null;
 }
 
 export interface Run {
@@ -120,6 +146,7 @@ export const api = {
       counts: { source_type: SourceType; n: number }[];
       lastRun: Run | null;
       nextAt: string | null;
+      clusters: Cluster[];
     }>(`/api/entries?filter=${encodeURIComponent(filter)}`),
   getEntry: (id: string) =>
     request<{ entry: Entry; thread: Thread | null; voiceCount: number }>(`/api/entries/${id}`),
@@ -131,6 +158,14 @@ export const api = {
   unmarkPosted: (id: number) => request<{ ok: true }>(`/api/threads/${id}/unposted`, { method: "POST" }),
   dismissEntry: (id: number) => request<{ ok: true }>(`/api/entries/${id}/dismiss`, { method: "POST" }),
   restoreEntry: (id: number) => request<{ ok: true }>(`/api/entries/${id}/restore`, { method: "POST" }),
+
+  getCluster: (id: string) =>
+    request<{ cluster: Cluster; members: ClusterMember[]; thread: Thread | null; voiceCount: number }>(
+      `/api/clusters/${id}`,
+    ),
+  draftClusterThread: (clusterId: number) =>
+    request<{ thread: Thread; voiceCount: number }>(`/api/clusters/${clusterId}/draft`, { method: "POST" }),
+  dismissCluster: (id: number) => request<{ ok: true }>(`/api/clusters/${id}/dismiss`, { method: "POST" }),
 
   listRuns: () => request<{ runs: Run[]; running: number | null; nextAt: string | null }>("/api/runs"),
   getRun: (id: number) => request<{ run: Run; sources: RunSource[] }>(`/api/runs/${id}`),

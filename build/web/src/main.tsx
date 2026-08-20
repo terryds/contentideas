@@ -13,7 +13,7 @@ import "./styles/app.css";
 function Shell() {
   const [unreachable, setUnreachable] = useState(false);
   const location = useLocation();
-  const wide = location.pathname.startsWith("/item/");
+  const wide = location.pathname.startsWith("/item/") || location.pathname.startsWith("/cluster/");
 
   useEffect(() => {
     const down = () => setUnreachable(true);
@@ -33,6 +33,7 @@ function Shell() {
       <Routes>
         <Route path="/" element={<Inbox />} />
         <Route path="/item/:id" element={<Editor />} />
+        <Route path="/cluster/:id" element={<Editor clusterMode />} />
         <Route path="/sources" element={<Sources />} />
         <Route path="/runs" element={<Runs />} />
         <Route path="/settings" element={<Settings />} />

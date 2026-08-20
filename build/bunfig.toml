@@ -1,0 +1,4 @@
+[test]
+# Runs before any test file's imports — points the DB singleton at a temp dir
+# so tests never touch data/content-engine.db.
+preload = ["./test/setup.ts"]

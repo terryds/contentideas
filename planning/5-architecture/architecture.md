@@ -24,6 +24,8 @@ One Bun process serves everything: the JSON API, the built React dashboard, and 
 
 Five routes matching the five mockups: `/` inbox, `/item/:id` editor, `/sources`, `/runs`, `/settings`. Talks only to `/api/*`. No SSR; the styleguide tokens become the SPA's CSS.
 
+- **Trending clusterer** *(v1.1)* — runs in the pipeline after filtering. Identity is two-tier: exact match on **normalized URLs** (strip `utm_*`/`ref`/`fbclid`/`gclid`, fragments, `www.`, trailing slash) or **topic-slug overlap ≥ 2** — the topic slugs come from the *same* `claude -p` filter call, extended to also return 2–4 canonical slugs per entry (no extra API calls). An entry joins the most recent cluster active within 48h that satisfies either test, else starts a new one. When a cluster's **distinct-source count** reaches the threshold (settings, default 2), the notifier sends one "trending across your sources" Telegram message — once per cluster, regardless of the taste verdicts of its members. Initial-import entries never join clusters.
+
 ## Data & storage
 
 SQLite via `bun:sqlite`, one local file. No sync, no accounts.
@@ -33,6 +35,8 @@ SQLite via `bun:sqlite`, one local file. No sync, no accounts.
 - `threads` — entry_id, draft_json (array of tweets), final_text (filled on "mark as posted"), posted_at. Posted rows are the few-shot voice pool.
 - `runs` — started_at, finished_at, trigger (`cron|manual`), totals.
 - `run_sources` — run_id, source_id, counts, duration, attempts, status (`ok|retrying|failed`), error_text. Powers both the Runs page and the Sources health column (health = latest run_sources row per source).
+- `clusters` *(v1.1)* — canonical title (first member's), topic slugs (union), url_keys, first/last activity, notified_at (nullable).
+- `cluster_entries` *(v1.1)* — cluster_id, entry_id. `entries` gains `topics` (JSON) and `url_key`; `threads.entry_id` becomes nullable with a new nullable `cluster_id` (exactly one set) so a thread can be drafted from a whole cluster.
 - `settings` — key/value: interval, Telegram bot token + chat ID, Floxy host/port/user/pass, Twitter tokens, taste prompt, generation prompt, voice-example count. **Secrets live in this local file** — acceptable for a single-user localhost tool; the file stays out of any git repo.
 - Runs older than 30 days pruned on startup.
 

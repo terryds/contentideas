@@ -369,6 +369,16 @@ td.mono {
   color: var(--good);
 }
 
+/* ---------- trending (M7) ---------- */
+.cluster-member {
+  border-top: 1px solid var(--line);
+  padding: 12px 0;
+}
+.cluster-member:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
 /* ---------- misc ---------- */
 .banner-error {
   background: var(--accent-bg);

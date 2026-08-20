@@ -27,8 +27,10 @@ build/
 │   │   ├── claude.ts       # runClaude(prompt, input): claude -p subprocess, timeout, defensive parse, one retry
 │   │   ├── filter.ts       # taste filter: entry → {matched, reason}
 │   │   └── generator.ts    # thread generation: item + prompt + voice examples → string[]
+│   ├── trending/
+│   │   └── cluster.ts      # v1.1: URL normalization, topic-overlap clustering, threshold check
 │   ├── notify/
-│   │   └── telegram.ts     # sendMatch(entry), sendTest()
+│   │   └── telegram.ts     # sendMatch(entry), sendTrending(cluster), sendTest()
 │   └── routes/             # one Hono router per resource, mounted under /api
 │       ├── entries.ts      # GET /api/entries?state=…, POST /api/entries/:id/dismiss
 │       ├── threads.ts      # POST /api/entries/:id/draft, PUT /api/threads/:id, POST /api/threads/:id/posted
@@ -50,6 +52,14 @@ build/
 │           ├── Sources.tsx
 │           ├── Runs.tsx
 │           └── Settings.tsx
+├── test/                   # M8 — run with `bun run test`; live layer via `bun run test:live`
+│   ├── setup.ts            # preloaded (bunfig.toml): temp CONTENT_ENGINE_DATA_DIR before db.ts loads
+│   ├── helpers.ts          # resetDb(), fixture feed server, claude-stub generator
+│   ├── fixtures/           # RSS/Atom XML, twitter-cli JSON, timedtext json3
+│   ├── unit/               # pure parsers, no I/O
+│   ├── integration/        # temp SQLite + localhost fixture server + stubbed claude bin
+│   ├── live/               # opt-in: owner's real sources + real claude
+│   └── live-sources.json   # owner-edited list of real sources for the live suite
 └── data/
     └── content-engine.db   # SQLite incl. secrets — gitignored, never leaves the machine
 ```

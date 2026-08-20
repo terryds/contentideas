@@ -6,12 +6,14 @@ import { runClaude } from "./claude";
 // question, tune by trial).
 const MAX_TRANSCRIPT_WORDS = 15_000;
 
-export function truncateTranscript(transcript: string): string {
+export function truncateTranscript(transcript: string, maxWords: number = MAX_TRANSCRIPT_WORDS): string {
   const words = transcript.split(/\s+/);
-  if (words.length <= MAX_TRANSCRIPT_WORDS) return transcript;
-  const head = words.slice(0, 10_000).join(" ");
+  if (words.length <= maxWords) return transcript;
+  const headLen = Math.floor(maxWords * (2 / 3));
+  const middleLen = maxWords - headLen;
+  const head = words.slice(0, headLen).join(" ");
   const middleStart = Math.floor(words.length / 2);
-  const middle = words.slice(middleStart, middleStart + 5_000).join(" ");
+  const middle = words.slice(middleStart, middleStart + middleLen).join(" ");
   return `${head}\n\n[… transcript truncated (${words.length} words total) — middle sample follows …]\n\n${middle}`;
 }
 
@@ -25,7 +27,7 @@ export function voiceExamples(): string[] {
   return rows.map((r) => r.final_text);
 }
 
-function parseThread(output: string): string[] {
+export function parseThread(output: string): string[] {
   // Models love code fences; strip them before parsing.
   const cleaned = output.replace(/^```(?:json)?\s*/im, "").replace(/```\s*$/m, "").trim();
   const start = cleaned.indexOf("[");
@@ -99,6 +101,66 @@ export function composeGenerationPrompt(entry: GenerationInput): { prompt: strin
 
 export async function generateThread(entry: GenerationInput): Promise<GeneratedThread> {
   const { prompt, voiceCount } = composeGenerationPrompt(entry);
+  const tweets = await runClaude(prompt, parseThread, { timeoutMs: 120_000 });
+  return { tweets, voiceCount };
+}
+
+/* ---------- M7: draft from a whole trending cluster ---------- */
+
+/** One thread about one story, drawing on every source's take. Transcript budget is split across members. */
+export function composeClusterGenerationPrompt(members: GenerationInput[]): { prompt: string; voiceCount: number } {
+  const generationPrompt = getSetting("generation_prompt") ?? "";
+  const examples = voiceExamples();
+  const transcriptCount = Math.max(1, members.filter((m) => m.transcript).length);
+  const perTranscript = Math.floor(15_000 / transcriptCount);
+
+  const sections = [
+    "You write Twitter threads for the owner of this tool. Follow their instructions exactly.",
+    "",
+    "## Owner's instructions",
+    generationPrompt,
+  ];
+
+  if (examples.length > 0) {
+    sections.push(
+      "",
+      "## Voice examples — the owner's last posted threads, most recent first. Match their voice, rhythm, and formatting.",
+      ...examples.map((example, i) => `### Example ${i + 1}\n${example}`),
+    );
+  }
+
+  sections.push(
+    "",
+    `## Story to write about — trending across ${members.length} of the owner's sources`,
+    "Write ONE thread about the story itself, drawing on all the takes below (the cross-source angle is part of what makes it thread-worthy).",
+  );
+
+  members.forEach((member, i) => {
+    sections.push(
+      "",
+      `### Take ${i + 1} — ${member.source_label}`,
+      `Title: ${member.title}`,
+      member.url ? `URL: ${member.url}` : "",
+      `Content: ${(member.content ?? "").slice(0, 4000) || "(no summary)"}`,
+    );
+    if (member.transcript) {
+      sections.push("Transcript:", truncateTranscript(member.transcript, perTranscript));
+    }
+  });
+
+  sections.push(
+    "",
+    "## Output format",
+    "Return ONLY a JSON array of tweet strings — 3 to 6 tweets, one string per tweet.",
+    'Example shape: ["first tweet", "second tweet", "third tweet"]',
+    "No markdown, no commentary, no numbering inside the tweets.",
+  );
+
+  return { prompt: sections.filter((s) => s !== "").join("\n"), voiceCount: examples.length };
+}
+
+export async function generateClusterThread(members: GenerationInput[]): Promise<GeneratedThread> {
+  const { prompt, voiceCount } = composeClusterGenerationPrompt(members);
   const tweets = await runClaude(prompt, parseThread, { timeoutMs: 120_000 });
   return { tweets, voiceCount };
 }

@@ -1,0 +1,9 @@
+{
+  "events": [
+    { "tStartMs": 0, "segs": [{ "utf8": "so last weekend I did" }, { "utf8": " something objectively stupid" }] },
+    { "tStartMs": 4000, "segs": [{ "utf8": "I took our entire billing service" }] },
+    { "tStartMs": 9000, "segs": [{ "utf8": "\n" }] },
+    { "tStartMs": 25000, "segs": [{ "utf8": "the total API bill came to $41" }] },
+    { "tStartMs": 31000, "segs": [{ "utf8": "forty one dollars" }] }
+  ]
+}

@@ -35,6 +35,21 @@ export async function sendMatch(entry: {
   await send(lines.join("\n\n"));
 }
 
+// M7: one ping per cluster, when it first spans the source threshold.
+export async function sendTrending(cluster: {
+  title: string;
+  sourceLabels: string[];
+  links: { label: string; url: string }[];
+}): Promise<void> {
+  const lines = [
+    "📈 Trending in your sources",
+    cluster.title,
+    `Seen in: ${cluster.sourceLabels.join(", ")}`,
+    ...cluster.links.slice(0, 5).map((link) => `${link.label}: ${link.url}`),
+  ];
+  await send(lines.join("\n\n"));
+}
+
 export async function sendTest(): Promise<void> {
   await send("Content Engine test — it works");
 }

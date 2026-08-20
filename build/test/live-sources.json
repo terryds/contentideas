@@ -1,0 +1,7 @@
+{
+  "_readme": "Fill in your real sources, then run: bun run test:live. Twitter needs TWITTER_AUTH_TOKEN and TWITTER_CT0 in the environment. Empty arrays are skipped.",
+  "rss": [],
+  "youtube": ["https://www.youtube.com/@aiDotEngineer"],
+  "twitter": ["https://x.com/levelsio"],
+  "hackernews": true
+}

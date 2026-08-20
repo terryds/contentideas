@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, formatClock, formatTime } from "../api";
-import type { Entry, Run, SourceType } from "../api";
+import type { Cluster, Entry, Run, SourceType } from "../api";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { Chip } from "../components/Chip";
@@ -30,6 +30,50 @@ function sourceMeta(entry: Entry): string {
   );
   if (entry.source_type === "youtube" && entry.transcript) parts.push("transcript fetched");
   return parts.join(" · ");
+}
+
+// M7: a story spanning several sources. Skipped members still show here —
+// trending notifies regardless of the taste verdict.
+function ClusterCard({ cluster, onDismiss }: { cluster: Cluster; onDismiss: (id: number) => void }) {
+  const navigate = useNavigate();
+  const hasDraft = cluster.thread_id != null;
+  return (
+    <Card>
+      <div className="t-small" style={{ marginBottom: 6 }}>
+        <span className="chip chip-warn">📈 Trending</span> · {cluster.sources_count} sources · first seen{" "}
+        {formatTime(cluster.first_seen)} · last {formatTime(cluster.last_activity)}
+      </div>
+      <div className="item-title">{cluster.title}</div>
+      <div style={{ margin: "8px 0 14px" }}>
+        {cluster.members.map((member) => (
+          <div key={member.id} className="t-small" style={{ marginTop: 4 }}>
+            <span className="src">{member.source_label}</span>
+            {" — "}
+            {member.url ? (
+              <a href={member.url} target="_blank" rel="noreferrer">
+                {member.title}
+              </a>
+            ) : (
+              member.title
+            )}
+            {member.filter_status === "skipped" && <span> · skipped by your filter</span>}
+          </div>
+        ))}
+      </div>
+      <div className="row">
+        {hasDraft ? (
+          <Button onClick={() => navigate(`/cluster/${cluster.id}`)}>Open draft</Button>
+        ) : (
+          <Button variant="primary" onClick={() => navigate(`/cluster/${cluster.id}?draft=1`)}>
+            Draft thread
+          </Button>
+        )}
+        <Button variant="quiet" onClick={() => onDismiss(cluster.id)}>
+          Dismiss
+        </Button>
+      </div>
+    </Card>
+  );
 }
 
 function EntryCard({
@@ -107,6 +151,7 @@ function EntryCard({
 export function Inbox() {
   const [filter, setFilter] = useState("all");
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [clusters, setClusters] = useState<Cluster[]>([]);
   const [counts, setCounts] = useState<Partial<Record<SourceType, number>>>({});
   const [lastRun, setLastRun] = useState<Run | null>(null);
   const [nextAt, setNextAt] = useState<string | null>(null);
@@ -117,6 +162,7 @@ export function Inbox() {
     try {
       const data = await api.listEntries(f);
       setEntries(data.entries);
+      setClusters(data.clusters ?? []);
       setCounts(Object.fromEntries(data.counts.map((c) => [c.source_type, c.n])));
       setLastRun(data.lastRun);
       setNextAt(data.nextAt);
@@ -155,6 +201,10 @@ export function Inbox() {
   };
   const restore = async (id: number) => {
     await api.restoreEntry(id);
+    load(filter);
+  };
+  const dismissCluster = async (id: number) => {
+    await api.dismissCluster(id);
     load(filter);
   };
 
@@ -196,7 +246,18 @@ export function Inbox() {
         })}
       </div>
 
+      {filter === "all" && clusters.length > 0 && (
+        <>
+          <p className="sec-lbl">Trending across your sources</p>
+          {clusters.map((cluster) => (
+            <ClusterCard key={cluster.id} cluster={cluster} onDismiss={dismissCluster} />
+          ))}
+          {entries.length > 0 && <p className="sec-lbl" style={{ marginTop: 24 }}>Matched</p>}
+        </>
+      )}
+
       {entries.length === 0 ? (
+        filter === "all" && clusters.length > 0 ? null : (
         <Card className="empty">
           <div className="mark">C</div>
           <h2>{filter === "dismissed" ? "Nothing dismissed" : "All caught up"}</h2>
@@ -211,6 +272,7 @@ export function Inbox() {
             </Button>
           )}
         </Card>
+        )
       ) : (
         entries.map((entry) => (
           <EntryCard key={entry.id} entry={entry} onDismiss={dismiss} onRestore={restore} />

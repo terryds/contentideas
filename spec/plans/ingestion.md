@@ -28,5 +28,5 @@ The engine's intake: on every cron firing (or "Run now"), fetch new entries from
 - HN front page: same story re-enters the top repeatedly — dedupe by item id handles it.
 - Feed with no dates / reordered items: rely purely on external_id presence, never on timestamps.
 - twitter-cli output format may change — parse defensively, fail the source loudly rather than ingest garbage.
-- Open: which twitter-cli subcommand/flags fetch a profile's recent tweets (pin exact invocation during M6); whether to include quote tweets.
+- ~~Open: which twitter-cli subcommand/flags~~ **Pinned against the real CLI (2026-08-20):** the binary installs as `twitter`; profile tweets = `twitter user-posts <handle> --json` (envelope `{ok, data: [...]}`; fields `id`, `text`, `isRetweet`, `author.screenName`, `urls[]`, `quotedTweet`); auth check = `twitter whoami --json`. Retweets (`isRetweet`) and replies (leading `@`) are skipped; a quoted tweet's text is appended to content for filter context; the first embedded URL feeds the trending `url_key` (see trending.md).
 - Open: HN slice size (top 30 vs full 500) — start with 30, it's a settings-free constant.

@@ -8,9 +8,11 @@ export interface RunClaudeOptions {
 }
 
 async function invoke(prompt: string, timeoutMs: number): Promise<string> {
+  // Test seam: integration tests point this at a deterministic stub script.
+  const bin = process.env.CONTENT_ENGINE_CLAUDE_BIN ?? "claude";
   let proc: ReturnType<typeof Bun.spawn>;
   try {
-    proc = Bun.spawn(["claude", "-p"], {
+    proc = Bun.spawn([bin, "-p"], {
       stdin: new TextEncoder().encode(prompt),
       stdout: "pipe",
       stderr: "pipe",

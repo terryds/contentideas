@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { db } from "../db/db";
 import { nextRunAt } from "../scheduler";
+import { activeClusters } from "../trending/cluster";
 
 const entries = new Hono();
 
@@ -37,7 +38,8 @@ entries.get("/", (c) => {
     )
     .get();
 
-  return c.json({ entries: rows, counts, lastRun, nextAt: nextRunAt() });
+  // M7: trending clusters ride on the inbox payload (shown on the "all" view).
+  return c.json({ entries: rows, counts, lastRun, nextAt: nextRunAt(), clusters: activeClusters() });
 });
 
 entries.get("/:id", (c) => {

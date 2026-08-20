@@ -25,6 +25,7 @@ const SECTION_OF: Record<string, string> = {
   taste_prompt: "Taste filter prompt",
   generation_prompt: "Thread generation prompt",
   voice_examples_count: "Thread generation prompt",
+  trending_threshold: "Trending",
 };
 
 export function Settings() {
@@ -223,6 +224,23 @@ export function Settings() {
             <option value="3">Last 3 posted threads</option>
             <option value="5">Last 5 posted threads</option>
             <option value="10">Last 10 posted threads</option>
+          </select>
+        </Field>
+      </Card>
+
+      <Card style={{ padding: 24, marginBottom: 24 }}>
+        <h2>Trending</h2>
+        <p className="sec-note">
+          When the same story appears in several sources within 48 hours, you get one Telegram ping — regardless of
+          the taste filter's verdict.
+        </p>
+        <Field label="Notify when a story appears in N sources" style={{ maxWidth: 300 }}>
+          <select value={current("trending_threshold")} onChange={(e) => edit("trending_threshold", e.target.value)}>
+            {[2, 3, 4, 5].map((n) => (
+              <option key={n} value={String(n)}>
+                {n} sources
+              </option>
+            ))}
           </select>
         </Field>
       </Card>

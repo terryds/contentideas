@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>swyx writing</title>
+    <link>https://swyx.io</link>
+    <item>
+      <guid isPermaLink="false">swyx-001</guid>
+      <title>Ship small, ship weekly &amp; other lessons</title>
+      <link>https://swyx.io/ship-small?utm_source=rss</link>
+      <description><![CDATA[<p>A <b>case study</b> on shipping&nbsp;cadence with numbers.</p>]]></description>
+    </item>
+    <item>
+      <guid isPermaLink="false">swyx-002</guid>
+      <title>The unbundling of everything</title>
+      <link>https://swyx.io/unbundling</link>
+      <content:encoded><![CDATA[Long form content here.]]></content:encoded>
+    </item>
+  </channel>
+</rss>

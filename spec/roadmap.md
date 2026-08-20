@@ -43,3 +43,15 @@ Draws from: [plans/ingestion.md](plans/ingestion.md) (YouTube section), [plans/t
 X-profile source type via twitter-cli subprocess (tokens from settings), Sources health column linking to the failing run, remaining empty/error states across pages, favicon (crimson "C" monogram), final pass against the styleguide in light and dark.
 Draws from: [plans/ingestion.md](plans/ingestion.md) (Twitter section), [plans/sources.md](plans/sources.md).
 **Done when:** a real X profile's new tweets flow through filter → Telegram → thread draft end-to-end; expired-cookie failure mode shows a clear error in run history and "Test auth" in settings reproduces it; all five pages match their mockups in both themes.
+
+## M7 — Cross-source trending *(v1.1, feature: 13)*
+
+Two-tier story identity (normalized `url_key` + topic slugs piggybacked on the existing filter call), 48h clustering, threshold-crossing Telegram notification independent of taste verdicts, Trending section in the Inbox with draft-from-cluster, threshold setting (default 2). Additive migration for `clusters`/`cluster_entries`/`entries.topics`/`entries.url_key`/`threads.cluster_id`.
+Draws from: [plans/trending.md](plans/trending.md).
+**Done when:** two sources carrying the same story (seed a test RSS feed with an article that is also on the HN front page, or two RSS feeds sharing an item) form one cluster and produce exactly one trending Telegram message listing both sources; a taste-skipped member still appears on the cluster card; drafting from the cluster feeds both members' material to the generator; raising the threshold to 3 in settings suppresses the 2-source ping.
+
+## M8 — Test suite *(v1.2)*
+
+`bun test` across three layers — unit (pure parsers vs fixtures), integration (temp SQLite, full `runOnce()` pipeline against a localhost fixture feed with a stubbed `claude` binary, clustering matrix, routes via `createApp().request()`), and an opt-in live suite reading the owner's real sources from `test/live-sources.json`. Test seams: `CONTENT_ENGINE_DATA_DIR`, `CONTENT_ENGINE_CLAUDE_BIN`, `createApp()` extraction, `migrateDb(db)`, `parseTweets()`.
+Draws from: [plans/testing.md](plans/testing.md).
+**Done when:** `bun run test` passes deterministically with no network/credentials/claude CLI; the live suite skips cleanly when `LIVE` is unset and, given real sources in `live-sources.json`, verifies each fetcher returns sane entries.

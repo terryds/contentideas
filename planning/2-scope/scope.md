@@ -19,6 +19,10 @@ Decision: everything from the brainstorm's core idea ships in v1 — this is an 
 11. **Settings page** — Floxy credentials, Twitter tokens, Telegram chat ID, taste-filter prompt, thread-generation prompt.
 12. **Cron-run history** — a debugging view listing each run with per-source outcomes, timings, and errors.
 
+## v1.1 — added after first build
+
+13. **Cross-source trending** — when the same story appears in K distinct sources (configurable, default 2) within 48h, notify via Telegram regardless of the taste filter's verdict, and show the cluster in the dashboard with a draft-from-cluster action.
+
 ## Later — parked
 
 - "Post it" button that publishes directly via twitter-cli (review + copy-paste is enough for now).

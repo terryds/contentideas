@@ -15,6 +15,10 @@ export interface NewEntry {
   title: string;
   url: string;
   content: string;
+  /** A link the entry points AT (e.g. a tweet's first embedded URL). When set,
+   * trending's url_key is computed from this instead of `url`, so different
+   * sources discussing the same page cluster together. */
+  embedded_url?: string | null;
 }
 
 export interface Fetcher {
