@@ -74,7 +74,7 @@ interface SourceResult {
   errorText: string | null;
 }
 
-async function fetchWithRetries(source: SourceRow): Promise<SourceResult> {
+async function fetchWithRetries(source: SourceRow, runId: number): Promise<SourceResult> {
   const fetcher = fetchers[source.type];
   if (!fetcher) {
     return {
@@ -91,7 +91,7 @@ async function fetchWithRetries(source: SourceRow): Promise<SourceResult> {
     if (BACKOFF_MS[attempt - 1]) await Bun.sleep(BACKOFF_MS[attempt - 1]);
     try {
       const entries = await fetcher.fetch(source);
-      const newCount = insertEntries(source, entries);
+      const newCount = insertEntries(source, entries, runId);
       return {
         newCount,
         attempts: attempt,
@@ -116,15 +116,15 @@ function lastErrorHeader(error: string): string {
 }
 
 /** Insert fetched entries, deduped by (source_id, external_id). Returns how many were actually new. */
-function insertEntries(source: SourceRow, entries: NewEntry[]): number {
+function insertEntries(source: SourceRow, entries: NewEntry[], runId: number): number {
   const label = sourceLabel(source);
   const firstFetch =
     (db.prepare("SELECT COUNT(*) AS n FROM entries WHERE source_id = ?").get(source.id) as { n: number }).n === 0;
 
   const insert = db.prepare(
     `INSERT OR IGNORE INTO entries
-       (source_id, source_type, source_label, external_id, title, url, content, url_key, filter_status, filter_reason, filtered_at, state, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?)`,
+       (source_id, source_type, source_label, external_id, title, url, content, url_key, filter_status, filter_reason, filtered_at, state, created_at, created_run_id, filtered_run_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?)`,
   );
 
   let newCount = 0;
@@ -134,14 +134,14 @@ function insertEntries(source: SourceRow, entries: NewEntry[]): number {
       if (!entry.external_id) continue;
       // First fetch of a new source: ingest the current items but consider them seen —
       // avoids blasting Telegram with a channel's back catalog.
-      const [filterStatus, filterReason, filteredAt] = firstFetch
-        ? ["skipped", "initial import", now]
-        : ["pending", null, null];
+      const [filterStatus, filterReason, filteredAt, filteredRunId] = firstFetch
+        ? ["skipped", "initial import", now, runId]
+        : ["pending", null, null, null];
       const result = insert.run(
         source.id, source.type, label, entry.external_id,
         entry.title, entry.url, entry.content,
         normalizeUrlKey(entry.embedded_url ?? entry.url),
-        filterStatus, filterReason, filteredAt, now,
+        filterStatus, filterReason, filteredAt, now, runId, filteredRunId,
       );
       newCount += result.changes;
     }
@@ -171,7 +171,7 @@ export async function runOnce(trigger: "cron" | "manual"): Promise<number | null
       // One source failing must never affect the others.
       let result: SourceResult;
       try {
-        result = await fetchWithRetries(source);
+        result = await fetchWithRetries(source, runId);
       } catch (err) {
         result = {
           newCount: 0,
@@ -224,8 +224,8 @@ async function filterPass(runId: number): Promise<void> {
       const verdict = await filterEntry(entry);
       consecutiveErrors = 0;
       db.prepare(
-        "UPDATE entries SET filter_status = ?, filter_reason = ?, filtered_at = ?, topics = ? WHERE id = ?",
-      ).run(verdict.matched ? "matched" : "skipped", verdict.reason, nowIso(), JSON.stringify(verdict.topics), entry.id);
+        "UPDATE entries SET filter_status = ?, filter_reason = ?, filtered_at = ?, filtered_run_id = ?, topics = ? WHERE id = ?",
+      ).run(verdict.matched ? "matched" : "skipped", verdict.reason, nowIso(), runId, JSON.stringify(verdict.topics), entry.id);
       if (verdict.matched) {
         // Attribute the match to this run's row for the entry's source (may be
         // absent if the source was since paused/removed — that's fine).

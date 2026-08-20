@@ -124,6 +124,16 @@ export interface RunSource {
   error_text: string | null;
 }
 
+export interface RunEntry {
+  id: number;
+  source_label: string;
+  title: string;
+  url: string | null;
+  filter_status: "pending" | "matched" | "skipped";
+  filter_reason: string | null;
+  state: Entry["state"];
+}
+
 export interface SettingsPayload {
   values: Record<string, string | null>;
   secrets: Record<string, { set: boolean }>;
@@ -168,7 +178,7 @@ export const api = {
   dismissCluster: (id: number) => request<{ ok: true }>(`/api/clusters/${id}/dismiss`, { method: "POST" }),
 
   listRuns: () => request<{ runs: Run[]; running: number | null; nextAt: string | null }>("/api/runs"),
-  getRun: (id: number) => request<{ run: Run; sources: RunSource[] }>(`/api/runs/${id}`),
+  getRun: (id: number) => request<{ run: Run; sources: RunSource[]; entries: RunEntry[] }>(`/api/runs/${id}`),
   triggerRun: () => request<{ runId: number | null; alreadyRunning: boolean }>("/api/runs/trigger", { method: "POST" }),
 
   getSettings: () => request<SettingsPayload>("/api/settings"),

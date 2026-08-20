@@ -43,6 +43,12 @@ const migrations: string[] = [
   DROP TABLE threads;
   ALTER TABLE threads_new RENAME TO threads;
   `,
+  // 4 — per-run entry detail: attribute each entry to the run that ingested it
+  // and the run whose filter pass produced its verdict.
+  `
+  ALTER TABLE entries ADD COLUMN created_run_id INTEGER;
+  ALTER TABLE entries ADD COLUMN filtered_run_id INTEGER;
+  `,
 ];
 
 const defaultSettings: Record<string, string> = {
@@ -59,6 +65,9 @@ const defaultSettings: Record<string, string> = {
     "contrarian claim, no \"I'm going to tell you about…\". Each tweet stands alone. Plain language, " +
     "no hashtags, no emoji except sparingly in tweet 1. End with one practical takeaway, not a summary.",
 };
+
+/** Current schema version — what PRAGMA user_version reads after a full migrate. */
+export const SCHEMA_VERSION = migrations.length;
 
 /** Test seam: run the migration sequence against any Database handle. */
 export function migrateDb(database: import("bun:sqlite").Database): void {

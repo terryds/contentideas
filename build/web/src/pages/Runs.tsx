@@ -1,9 +1,72 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api, formatClock, formatDuration, formatTime } from "../api";
-import type { Run, RunSource } from "../api";
+import type { Run, RunEntry, RunSource } from "../api";
 import { Button } from "../components/Button";
 import { Chip } from "../components/Chip";
+
+// One line per entry the run touched: verdict chip, title, the filter's own
+// reasoning, and what happened Telegram-wise — the "why didn't X get picked
+// up?" answer, per record.
+function EntryRow({ entry }: { entry: RunEntry }) {
+  const chip =
+    entry.filter_status === "matched" ? (
+      <Chip tone="good">Matched</Chip>
+    ) : entry.filter_status === "pending" ? (
+      <Chip tone="warn">Pending</Chip>
+    ) : entry.filter_reason === "initial import" ? (
+      <Chip tone="neutral">Initial import</Chip>
+    ) : (
+      <Chip tone="neutral">Skipped</Chip>
+    );
+
+  const outcome =
+    entry.filter_status === "matched"
+      ? entry.state === "new"
+        ? { text: "notification not sent yet — see run errors above", tone: "var(--warn)" }
+        : { text: "sent to Telegram ✓", tone: "var(--good)" }
+      : null;
+
+  return (
+    <div style={{ borderTop: "1px solid var(--line)", padding: "10px 0" }}>
+      <div className="row" style={{ gap: 10 }}>
+        {chip}
+        <span className="src" style={{ color: "var(--muted)" }}>{entry.source_label}</span>
+        {entry.filter_status === "matched" ? (
+          <Link to={`/item/${entry.id}`} style={{ fontWeight: 600 }}>{entry.title}</Link>
+        ) : entry.url ? (
+          <a href={entry.url} target="_blank" rel="noreferrer" style={{ fontWeight: 600, color: "var(--ink)" }}>
+            {entry.title}
+          </a>
+        ) : (
+          <span style={{ fontWeight: 600 }}>{entry.title}</span>
+        )}
+      </div>
+      {entry.filter_status === "pending" ? (
+        <div className="t-small" style={{ marginTop: 4 }}>
+          Not judged yet — the filter didn't reach this entry (claude unavailable or run aborted). It will be
+          re-filtered on the next run.
+        </div>
+      ) : (
+        entry.filter_reason &&
+        entry.filter_reason !== "initial import" && (
+          <div className="t-small" style={{ marginTop: 4, maxWidth: "75ch" }}>
+            {entry.filter_status === "matched" ? "why it matched: " : "why it was skipped: "}
+            {entry.filter_reason}
+          </div>
+        )
+      )}
+      {entry.filter_reason === "initial import" && (
+        <div className="t-small" style={{ marginTop: 4 }}>
+          First fetch of this source — recorded as already seen, never filtered or notified.
+        </div>
+      )}
+      {outcome && (
+        <div className="t-small" style={{ marginTop: 2, color: outcome.tone, fontWeight: 600 }}>{outcome.text}</div>
+      )}
+    </div>
+  );
+}
 
 type RunWithCount = Run & { sources_count: number };
 
@@ -39,12 +102,15 @@ function RunRow({
 }) {
   const [open, setOpen] = useState(false);
   const [sources, setSources] = useState<RunSource[] | null>(null);
+  const [entries, setEntries] = useState<RunEntry[] | null>(null);
 
   const toggle = async () => {
     const next = !open;
     setOpen(next);
     if (next && !sources) {
-      setSources((await api.getRun(run.id)).sources);
+      const detail = await api.getRun(run.id);
+      setSources(detail.sources);
+      setEntries(detail.entries ?? []);
     }
   };
 
@@ -143,6 +209,17 @@ function RunRow({
                   </tbody>
                 </table>
               </div>
+              {entries && entries.length > 0 && (
+                <div style={{ marginTop: 16 }}>
+                  <p className="sec-lbl" style={{ marginBottom: 6 }}>
+                    Entries this run touched · {entries.filter((e) => e.filter_status === "matched").length} matched
+                    of {entries.length}
+                  </p>
+                  {entries.map((entry) => (
+                    <EntryRow key={entry.id} entry={entry} />
+                  ))}
+                </div>
+              )}
               {sources
                 .filter((s) => s.error_text)
                 .map((s) => {

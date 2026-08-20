@@ -77,6 +77,22 @@ describe("ingestion pipeline", () => {
     expect(sourceRow.attempts).toBe(1);
     expect(sourceRow.matched_count).toBe(1);
 
+    // Per-run entry detail: the run answers "why did/didn't each entry get picked up".
+    const detail1 = (await app.request(`/api/runs/${run1}`).then((r) => r.json())) as {
+      entries: { filter_status: string; filter_reason: string | null }[];
+    };
+    expect(detail1.entries).toHaveLength(2);
+    for (const e of detail1.entries) {
+      expect(e.filter_status).toBe("skipped");
+      expect(e.filter_reason).toBe("initial import");
+    }
+    const detail2 = (await app.request(`/api/runs/${run2}`).then((r) => r.json())) as {
+      entries: { title: string; filter_status: string; filter_reason: string | null; state: string }[];
+    };
+    expect(detail2.entries).toHaveLength(1);
+    expect(detail2.entries[0].filter_status).toBe("matched");
+    expect(detail2.entries[0].filter_reason).toBe("stub filter says this fits");
+
     // Telegram is unconfigured: the send was attempted, recorded, and the entry stays 'new' for a resend.
     expect(String(runRow.error_text)).toContain("Telegram send failed");
     expect(fresh.state).toBe("new");

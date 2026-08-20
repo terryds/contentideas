@@ -2,7 +2,7 @@ import { describe, expect, test, beforeEach } from "bun:test";
 import { Database } from "bun:sqlite";
 import { join } from "node:path";
 import { db, nowIso } from "../../server/db/db";
-import { migrate, migrateDb } from "../../server/db/migrate";
+import { migrate, migrateDb, SCHEMA_VERSION } from "../../server/db/migrate";
 import { resetDb } from "../helpers";
 
 describe("migrations", () => {
@@ -43,7 +43,7 @@ describe("v1 → M7 upgrade path", () => {
 
     migrateDb(v1);
 
-    expect((v1.query("PRAGMA user_version").get() as { user_version: number }).user_version).toBe(3);
+    expect((v1.query("PRAGMA user_version").get() as { user_version: number }).user_version).toBe(SCHEMA_VERSION);
     const thread = v1.prepare("SELECT * FROM threads WHERE id = 1").get() as Record<string, unknown>;
     expect(thread.entry_id).toBe(1);
     expect(thread.cluster_id).toBeNull();

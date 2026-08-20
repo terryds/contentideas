@@ -20,7 +20,18 @@ runs.get("/:id", (c) => {
   const sources = db
     .prepare("SELECT * FROM run_sources WHERE run_id = ? ORDER BY id")
     .all(c.req.param("id"));
-  return c.json({ run, sources });
+  // Every entry this run touched: verdicts produced by this run's filter pass,
+  // plus entries it ingested that are still pending (filter aborted / claude down).
+  // Answers "why didn't X reach my Telegram?" with the filter's own reasoning.
+  const entries = db
+    .prepare(
+      `SELECT id, source_label, title, url, filter_status, filter_reason, state
+       FROM entries
+       WHERE filtered_run_id = ?1 OR (created_run_id = ?1 AND filter_status = 'pending')
+       ORDER BY CASE filter_status WHEN 'matched' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END, id`,
+    )
+    .all(c.req.param("id"));
+  return c.json({ run, sources, entries });
 });
 
 runs.post("/trigger", (c) => {
