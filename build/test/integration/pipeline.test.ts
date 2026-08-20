@@ -37,22 +37,21 @@ async function addFixtureSource(): Promise<number> {
 }
 
 describe("ingestion pipeline", () => {
-  test("initial import → new item → filter, notify attempt, clustering, dedupe", async () => {
+  test("first fetch is judged → new item → filter, notify attempt, clustering, dedupe", async () => {
     const sourceId = await addFixtureSource();
 
-    // Run 1: first fetch of a new source is an initial import — seen, never filtered/notified.
-    const run1 = await runOnce("manual");
+    // Run 1: a source's first fetch is judged like any other (no initial-import
+    // rule — owner's call: full judgment over a silent baseline).
+    const run1 = (await runOnce("manual")) as number;
     expect(run1).not.toBeNull();
-    const imported = db.prepare("SELECT filter_status, filter_reason, state FROM entries").all() as {
-      filter_status: string; filter_reason: string; state: string;
+    const imported = db.prepare("SELECT filter_status, filter_reason FROM entries").all() as {
+      filter_status: string; filter_reason: string;
     }[];
     expect(imported).toHaveLength(2);
     for (const entry of imported) {
-      expect(entry.filter_status).toBe("skipped");
-      expect(entry.filter_reason).toBe("initial import");
-      expect(entry.state).toBe("new");
+      expect(entry.filter_status).toBe("matched"); // the stub matches everything
+      expect(entry.filter_reason).toBe("stub filter says this fits");
     }
-    expect((db.prepare("SELECT COUNT(*) AS n FROM cluster_entries").get() as { n: number }).n).toBe(0);
 
     // The feed gains a post.
     feed.setBody(rssDoc([...ITEMS, NEW_ITEM]));
@@ -81,15 +80,11 @@ describe("ingestion pipeline", () => {
     const detail1 = (await app.request(`/api/runs/${run1}`).then((r) => r.json())) as {
       entries: { filter_status: string; filter_reason: string | null }[];
     };
-    expect(detail1.entries).toHaveLength(2);
-    for (const e of detail1.entries) {
-      expect(e.filter_status).toBe("skipped");
-      expect(e.filter_reason).toBe("initial import");
-    }
+    expect(detail1.entries).toHaveLength(2); // first fetch: both judged in run 1
     const detail2 = (await app.request(`/api/runs/${run2}`).then((r) => r.json())) as {
       entries: { title: string; filter_status: string; filter_reason: string | null; state: string }[];
     };
-    expect(detail2.entries).toHaveLength(1);
+    expect(detail2.entries).toHaveLength(1); // only the fresh item was judged by run 2
     expect(detail2.entries[0].filter_status).toBe("matched");
     expect(detail2.entries[0].filter_reason).toBe("stub filter says this fits");
 
@@ -102,8 +97,8 @@ describe("ingestion pipeline", () => {
     const inbox = (await app.request("/api/entries?filter=all").then((r) => r.json())) as {
       entries: unknown[]; clusters: unknown[];
     };
-    expect(inbox.entries).toHaveLength(1);
-    expect(inbox.clusters).toHaveLength(0);
+    expect(inbox.entries).toHaveLength(3); // all judged now, all matched by the stub
+    expect(inbox.clusters).toHaveLength(0); // one source only — never surfaces as trending
 
     // Run 3: unchanged feed → dedupe means zero new, no refiltering of decided entries.
     const run3 = (await runOnce("manual")) as number;
@@ -112,9 +107,9 @@ describe("ingestion pipeline", () => {
     expect((db.prepare("SELECT COUNT(*) AS n FROM entries").get() as { n: number }).n).toBe(3);
   }, 30_000);
 
-  test("clear-history wipes ingestion state, keeps voice pool, re-imports as seen", async () => {
+  test("clear-history wipes ingestion state, keeps voice pool, re-judges on next run", async () => {
     await addFixtureSource();
-    await runOnce("manual"); // initial import: 2 entries
+    await runOnce("manual"); // ingests + judges 2 entries
     // Seed one posted thread (voice pool) and one unposted draft.
     const now = new Date().toISOString();
     db.prepare("INSERT INTO threads (entry_id, draft_json, final_text, posted_at, updated_at) VALUES (1, '[\"final\"]', 'final', ?, ?)").run(now, now);
@@ -132,15 +127,16 @@ describe("ingestion pipeline", () => {
     expect((db.prepare("SELECT COUNT(*) AS n FROM sources").get() as { n: number }).n).toBe(1); // sources survive
     expect((db.prepare("SELECT COUNT(*) AS n FROM threads").get() as { n: number }).n).toBe(1); // posted kept
 
-    // Next run re-imports the feed's current items as already seen — no notifications.
+    // Next run re-ingests the feed's current items and JUDGES every one (no
+    // initial-import rule) — cleared data really does start over.
     await runOnce("manual");
     const reimported = db.prepare("SELECT filter_status, filter_reason FROM entries").all() as {
       filter_status: string; filter_reason: string;
     }[];
     expect(reimported).toHaveLength(2);
     for (const entry of reimported) {
-      expect(entry.filter_status).toBe("skipped");
-      expect(entry.filter_reason).toBe("initial import");
+      expect(entry.filter_status).toBe("matched"); // stub matches everything
+      expect(entry.filter_reason).toBe("stub filter says this fits");
     }
   }, 30_000);
 

@@ -101,3 +101,11 @@ Also: **Settings → Danger zone → "Clear history data"** (spec'd in plans/set
 **Built (spec'd in plans/ingestion.md first):** expanding a run on the Runs page now lists **every entry that run touched** — verdict chip (Matched / Skipped / Initial import / Pending), the filter's full reasoning per record, links (matched → editor, skipped → source), and the notification outcome ("sent to Telegram ✓" / "notification not sent yet — see run errors above"). Pending entries explain themselves ("filter didn't reach this entry, re-filtered next run"). Migration 4 adds `entries.created_run_id` + `entries.filtered_run_id` so verdicts are attributable to the run that produced them (leftovers filtered later appear under the later run); initial imports stamp the ingesting run. `GET /api/runs/:id` returns the entry list, matched-first.
 
 **Verified:** pipeline integration test asserts run 1 details (2 × initial import) and run 2 details (1 × matched with the stub's reasoning). Migration count is now asserted via exported SCHEMA_VERSION instead of a hardcoded number. Suite 56/56, tsc clean, vite build clean.
+
+## Initial-import rule removed (2026-08-20)
+
+**Why:** the owner cleared history, ran a check, and every entry came back "recorded as already seen" — the initial-import rule re-arming after a clear. Their call after seeing the trade-offs: **full judgment over a silent baseline** — a source's first fetch and post-clear re-imports should be filtered and notified like any other run, accepting one `claude -p` call per current item and a possible notification burst.
+
+**Changed (spec first — plans/ingestion.md, plans/settings.md):** `insertEntries` always inserts `pending`; the firstFetch/"initial import" branch is gone. Legacy rows keep their "initial import" reason and still render in run history (chip + explanation), and trending still excludes them. Danger-zone copy + confirm dialog now warn about the long re-judge run. Pipeline tests updated: first fetch judged, post-clear re-judged.
+
+**Verified:** suite 56/56, tsc clean, vite build clean.

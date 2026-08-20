@@ -16,7 +16,7 @@ Sections per the [mockup](../../planning/4-mockups/settings.html), all persisted
 - **Thread generation prompt:** multiline textarea, same split: voice/format wishes here, JSON output contract in code. Plus **voice examples count** select (last 3 / 5 / 10 posted threads).
 - Defaults on fresh install: 30-min interval, both prompts pre-filled with sensible starter text (adapted from the mockups), everything else empty.
 
-- **Danger zone — Clear history data** *(v1.2)*: one confirm-guarded action that deletes all ingested entries, runs/run history, clusters, and **unposted** drafts — keeping sources, settings, and **posted threads** (they are the voice-example pool; clearing history shouldn't lobotomize the writing voice). After clearing, each source's next fetch counts as a first fetch again → the initial-import rule applies, so current feed contents are recorded as seen without a Telegram blast; only genuinely new posts from then on get filtered and notified. Refused with a clear error while a check is running.
+- **Danger zone — Clear history data** *(v1.2)*: one confirm-guarded action that deletes all ingested entries, runs/run history, clusters, and **unposted** drafts — keeping sources, settings, and **posted threads** (they are the voice-example pool; clearing history shouldn't lobotomize the writing voice). After clearing, the next run re-ingests each source's current items and **judges every one of them** (initial-import rule removed by owner decision — see ingestion.md): expect a long run (one `claude -p` call per item) and a Telegram ping per match. Refused with a clear error while a check is running.
 
 ## Secrets handling
 

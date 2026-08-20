@@ -252,14 +252,15 @@ export function Settings() {
         <p className="sec-note" style={{ maxWidth: "65ch" }}>
           Clear history data deletes all ingested entries, run history, trending clusters, and unposted drafts.
           Your sources, settings, and posted threads (the voice examples) are kept. On the next check every source
-          re-imports its current items as already seen — nothing gets re-notified; only new posts from then on.
+          re-imports its current items and every one of them gets judged by the taste filter — expect a long run
+          (one claude call per item) and a Telegram ping for each match.
         </p>
         <div className="row">
           <Button
             variant="primary"
             disabled={clearing}
             onClick={async () => {
-              if (!confirm("Clear all history data? Entries, runs, clusters, and unposted drafts will be deleted. Sources, settings, and posted threads are kept.")) return;
+              if (!confirm("Clear all history data? Entries, runs, clusters, and unposted drafts will be deleted. Sources, settings, and posted threads are kept. The next check will re-judge everything currently in your sources — expect a long run and possibly many notifications.")) return;
               setClearing(true);
               setClearNote(null);
               try {

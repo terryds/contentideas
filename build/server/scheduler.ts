@@ -118,13 +118,13 @@ function lastErrorHeader(error: string): string {
 /** Insert fetched entries, deduped by (source_id, external_id). Returns how many were actually new. */
 function insertEntries(source: SourceRow, entries: NewEntry[], runId: number): number {
   const label = sourceLabel(source);
-  const firstFetch =
-    (db.prepare("SELECT COUNT(*) AS n FROM entries WHERE source_id = ?").get(source.id) as { n: number }).n === 0;
-
+  // Every ingested entry is judged — including a source's first fetch and
+  // post-clear re-imports (owner's call: full judgment over a silent baseline;
+  // the old "initial import" rule is gone, legacy rows keep their reason).
   const insert = db.prepare(
     `INSERT OR IGNORE INTO entries
-       (source_id, source_type, source_label, external_id, title, url, content, url_key, filter_status, filter_reason, filtered_at, state, created_at, created_run_id, filtered_run_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?)`,
+       (source_id, source_type, source_label, external_id, title, url, content, url_key, filter_status, state, created_at, created_run_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'new', ?, ?)`,
   );
 
   let newCount = 0;
@@ -132,16 +132,11 @@ function insertEntries(source: SourceRow, entries: NewEntry[], runId: number): n
   db.transaction(() => {
     for (const entry of entries) {
       if (!entry.external_id) continue;
-      // First fetch of a new source: ingest the current items but consider them seen —
-      // avoids blasting Telegram with a channel's back catalog.
-      const [filterStatus, filterReason, filteredAt, filteredRunId] = firstFetch
-        ? ["skipped", "initial import", now, runId]
-        : ["pending", null, null, null];
       const result = insert.run(
         source.id, source.type, label, entry.external_id,
         entry.title, entry.url, entry.content,
         normalizeUrlKey(entry.embedded_url ?? entry.url),
-        filterStatus, filterReason, filteredAt, now, runId, filteredRunId,
+        now, runId,
       );
       newCount += result.changes;
     }

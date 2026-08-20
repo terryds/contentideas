@@ -25,7 +25,7 @@ The engine's intake: on every cron firing (or "Run now"), fetch new entries from
 
 ## Edge cases & open questions
 
-- First fetch of a new source: ingest current items but consider them seen — mark all `skipped` with reason "initial import" (avoid blasting Telegram with a channel's back catalog). Only entries after that are filtered normally.
+- ~~First fetch of a new source: mark all as seen ("initial import")~~ **Removed by owner decision (2026-08-20):** every ingested entry is judged, *including* a source's first fetch and post-clear re-imports. The owner prefers full judgment over a silent baseline, accepting the costs: a new source's first run makes one `claude -p` call per current item (~10s each, serial) and each match pings Telegram. Legacy entries with reason "initial import" still render correctly in run history; trending still excludes them.
 - HN front page: same story re-enters the top repeatedly — dedupe by item id handles it.
 - Feed with no dates / reordered items: rely purely on external_id presence, never on timestamps.
 - twitter-cli output format may change — parse defensively, fail the source loudly rather than ingest garbage.
