@@ -119,3 +119,11 @@ Also: **Settings → Danger zone → "Clear history data"** (spec'd in plans/set
 **Filter concurrency:** judgments now run 3 `claude -p` calls at a time (was serial — unacceptable once first fetches became fully judged). Abort semantics preserved: ClaudeUnavailable stops the pass immediately; 3 errors without a success in between abort it; unjudged entries stay pending.
 
 **Verified:** suite 57/57 (new test: max_records caps ingestion; a just-fetched source is not due on the next cron tick and becomes due past its interval; inline cadence PUT validates), tsc clean (doctor.ts now typechecked too), vite build clean.
+
+## Transcript fix: WEB caption URLs are pot-gated — switched to the IOS client (2026-08-20)
+
+**Found (live, through Floxy):** the WEB Innertube client's caption URLs now require YouTube's proof-of-origin token — timedtext answers HTTP 200 with an EMPTY body even on clean residential IPs (this is what "null is not an object (evaluating 'data.events')" was, before the null-guard made it a readable error). Probed alternatives live: `get_transcript` Innertube endpoint 400s ("Precondition check failed") under every params/context/visitorData variation; ANDROID player flaked; **IOS client works** — playability OK, caption tracks present, timedtext returns full payloads (232KB/818 events on the probe video).
+
+**Fixed:** `transcript.ts` player call now uses the IOS client context + matching iOS UA on both the player and timedtext requests (watch-page fallback keeps a browser UA). Fresh-session-per-attempt unchanged.
+
+**Verified live:** `@aiDotEngineer`'s newest video fetched a 3,454-word `[mm:ss]`-blocked transcript through Floxy on attempt 1 — the exact video that failed 3/3 attempts before the fix. Suite 57/57, tsc clean.

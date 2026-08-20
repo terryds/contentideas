@@ -6,18 +6,32 @@ import { buildProxySession } from "../proxy/floxy";
 // the same two-step flow (player response → timedtext captions), but neither
 // lets us swap the proxy per request — and the spec demands a FRESH Floxy
 // session (new IP) per attempt. So the flow is implemented directly with Bun's
-// per-call `proxy` fetch option:
-//   1. Innertube WEB player endpoint → caption track list
-//      (fallback: scrape ytInitialPlayerResponse off the watch page)
-//   2. timedtext baseUrl + fmt=json3 → segments
-// Verified from this build box that both steps answer 200 but flag a
-// datacenter IP with LOGIN_REQUIRED ("Sign in to confirm you're not a bot") —
-// exactly the block Floxy's residential IPs exist to clear.
+// per-call `proxy` fetch option.
+//
+// Client choice (probed live 2026-08-20): the WEB client's caption URLs are
+// gated behind YouTube's proof-of-origin token — timedtext answers 200 with an
+// EMPTY body even from clean residential IPs. The IOS client's caption URLs are
+// not pot-gated and return full payloads through Floxy. So:
+//   1. Innertube IOS player endpoint → caption track list
+//      (fallback: scrape captionTracks off the watch page)
+//   2. timedtext baseUrl + fmt=json3, iOS UA → segments
 
 const ATTEMPTS = 3;
 const BACKOFF_MS = [0, 3_000, 8_000];
-const UA =
+// iOS client UA — must match the clientName below on both player AND timedtext calls.
+const UA = "com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X)";
+const WEB_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
+const IOS_CONTEXT = {
+  client: {
+    clientName: "IOS",
+    clientVersion: "20.10.4",
+    deviceModel: "iPhone16,2",
+    osName: "iPhone",
+    osVersion: "17.5.1.21F90",
+    hl: "en",
+  },
+};
 
 interface CaptionTrack {
   baseUrl: string;
@@ -37,10 +51,7 @@ async function playerCaptionTracks(videoId: string, proxyUrl: string): Promise<C
   const res = await fetch("https://www.youtube.com/youtubei/v1/player?prettyPrint=false", {
     method: "POST",
     headers: { "content-type": "application/json", "user-agent": UA, "accept-language": "en-US,en;q=0.9" },
-    body: JSON.stringify({
-      context: { client: { clientName: "WEB", clientVersion: "2.20240726.00.00", hl: "en" } },
-      videoId,
-    }),
+    body: JSON.stringify({ context: IOS_CONTEXT, videoId, contentCheckOk: true, racyCheckOk: true }),
     proxy: proxyUrl,
     signal: AbortSignal.timeout(25_000),
   });
@@ -64,7 +75,7 @@ async function playerCaptionTracks(videoId: string, proxyUrl: string): Promise<C
 
 async function watchPageCaptionTracks(videoId: string, proxyUrl: string): Promise<CaptionTrack[]> {
   const res = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
-    headers: { "user-agent": UA, "accept-language": "en-US,en;q=0.9" },
+    headers: { "user-agent": WEB_UA, "accept-language": "en-US,en;q=0.9" },
     proxy: proxyUrl,
     signal: AbortSignal.timeout(25_000),
   });
