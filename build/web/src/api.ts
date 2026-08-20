@@ -174,6 +174,11 @@ export const api = {
   getSettings: () => request<SettingsPayload>("/api/settings"),
   saveSettings: (values: Record<string, string>) =>
     request<{ ok: true }>("/api/settings", { method: "PUT", body: JSON.stringify(values) }),
+  clearHistory: () =>
+    request<{ ok: true; cleared: { entries: number; runs: number; clusters: number; drafts: number }; keptVoice: number }>(
+      "/api/settings/clear-history",
+      { method: "POST" },
+    ),
 };
 
 /* ---------- display helpers (timestamps stored UTC, rendered local) ---------- */

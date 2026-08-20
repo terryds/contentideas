@@ -96,6 +96,38 @@ describe("ingestion pipeline", () => {
     expect((db.prepare("SELECT COUNT(*) AS n FROM entries").get() as { n: number }).n).toBe(3);
   }, 30_000);
 
+  test("clear-history wipes ingestion state, keeps voice pool, re-imports as seen", async () => {
+    await addFixtureSource();
+    await runOnce("manual"); // initial import: 2 entries
+    // Seed one posted thread (voice pool) and one unposted draft.
+    const now = new Date().toISOString();
+    db.prepare("INSERT INTO threads (entry_id, draft_json, final_text, posted_at, updated_at) VALUES (1, '[\"final\"]', 'final', ?, ?)").run(now, now);
+    db.prepare("INSERT INTO threads (entry_id, draft_json, updated_at) VALUES (2, '[\"draft\"]', ?)").run(now);
+
+    const res = await app.request("/api/settings/clear-history", { method: "POST" });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { cleared: { entries: number; drafts: number }; keptVoice: number };
+    expect(body.cleared.entries).toBe(2);
+    expect(body.cleared.drafts).toBe(1);
+    expect(body.keptVoice).toBe(1);
+
+    expect((db.prepare("SELECT COUNT(*) AS n FROM entries").get() as { n: number }).n).toBe(0);
+    expect((db.prepare("SELECT COUNT(*) AS n FROM runs").get() as { n: number }).n).toBe(0);
+    expect((db.prepare("SELECT COUNT(*) AS n FROM sources").get() as { n: number }).n).toBe(1); // sources survive
+    expect((db.prepare("SELECT COUNT(*) AS n FROM threads").get() as { n: number }).n).toBe(1); // posted kept
+
+    // Next run re-imports the feed's current items as already seen — no notifications.
+    await runOnce("manual");
+    const reimported = db.prepare("SELECT filter_status, filter_reason FROM entries").all() as {
+      filter_status: string; filter_reason: string;
+    }[];
+    expect(reimported).toHaveLength(2);
+    for (const entry of reimported) {
+      expect(entry.filter_status).toBe("skipped");
+      expect(entry.filter_reason).toBe("initial import");
+    }
+  }, 30_000);
+
   test("a failing source retries with a trace and never blocks the healthy one", async () => {
     await addFixtureSource();
     // A source that died AFTER being added (add-time validation would refuse a

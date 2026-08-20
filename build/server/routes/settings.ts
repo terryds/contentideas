@@ -65,4 +65,28 @@ settings.put("/", async (c) => {
   return c.json({ ok: true });
 });
 
+// Danger zone: wipe ingestion history — entries, runs, clusters, unposted
+// drafts. Keeps sources, settings, and POSTED threads (the voice-example pool).
+// Sources re-import as seen on the next check (initial-import rule), so nothing
+// gets re-notified.
+settings.post("/clear-history", async (c) => {
+  const { runningRunId } = await import("../scheduler");
+  if (runningRunId() !== null) {
+    return c.json({ error: "A check is running — wait for it to finish, then clear again" }, 409);
+  }
+  let cleared = { entries: 0, runs: 0, clusters: 0, drafts: 0 };
+  db.transaction(() => {
+    cleared = {
+      entries: db.prepare("DELETE FROM entries").run().changes,
+      runs: db.prepare("DELETE FROM runs").run().changes,
+      clusters: db.prepare("DELETE FROM clusters").run().changes,
+      drafts: db.prepare("DELETE FROM threads WHERE posted_at IS NULL").run().changes,
+    };
+    db.prepare("DELETE FROM run_sources").run();
+    db.prepare("DELETE FROM cluster_entries").run();
+  })();
+  const keptVoice = (db.prepare("SELECT COUNT(*) AS n FROM threads WHERE posted_at IS NOT NULL").get() as { n: number }).n;
+  return c.json({ ok: true, cleared, keptVoice });
+});
+
 export default settings;

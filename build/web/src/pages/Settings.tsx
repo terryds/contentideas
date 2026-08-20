@@ -36,6 +36,8 @@ export function Settings() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [tests, setTests] = useState<Record<string, TestState>>({});
+  const [clearing, setClearing] = useState(false);
+  const [clearNote, setClearNote] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const data = await api.getSettings();
@@ -243,6 +245,39 @@ export function Settings() {
             ))}
           </select>
         </Field>
+      </Card>
+
+      <Card style={{ padding: 24, marginBottom: 24, borderColor: "var(--accent)" }}>
+        <h2 style={{ color: "var(--accent)" }}>Danger zone</h2>
+        <p className="sec-note" style={{ maxWidth: "65ch" }}>
+          Clear history data deletes all ingested entries, run history, trending clusters, and unposted drafts.
+          Your sources, settings, and posted threads (the voice examples) are kept. On the next check every source
+          re-imports its current items as already seen — nothing gets re-notified; only new posts from then on.
+        </p>
+        <div className="row">
+          <Button
+            variant="primary"
+            disabled={clearing}
+            onClick={async () => {
+              if (!confirm("Clear all history data? Entries, runs, clusters, and unposted drafts will be deleted. Sources, settings, and posted threads are kept.")) return;
+              setClearing(true);
+              setClearNote(null);
+              try {
+                const res = await api.clearHistory();
+                setClearNote(
+                  `Cleared ${res.cleared.entries} entries, ${res.cleared.runs} runs, ${res.cleared.clusters} clusters, ${res.cleared.drafts} drafts — kept ${res.keptVoice} posted thread${res.keptVoice === 1 ? "" : "s"}.`,
+                );
+              } catch (err) {
+                setClearNote(err instanceof Error ? err.message : String(err));
+              } finally {
+                setClearing(false);
+              }
+            }}
+          >
+            {clearing ? "Clearing…" : "Clear history data"}
+          </Button>
+          {clearNote && <span className="t-small">{clearNote}</span>}
+        </div>
       </Card>
 
       <div

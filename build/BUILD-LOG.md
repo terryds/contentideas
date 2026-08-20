@@ -77,3 +77,19 @@ Overnight build of Content Engine from `spec/`, milestone by milestone. Each ent
 **Fixed (spec updated first — plans/ingestion.md, plans/trending.md):** `fetchers/twitter.ts` rewritten for the real interface — envelope unwrapping with `ok:false` error surfacing, `whoami --json` for Test auth, retweet skip via `isRetweet`, quoted-tweet text appended to content as filter context, and the tweet's **first embedded URL** exposed as `NewEntry.embedded_url`, which ingestion now prefers when computing the trending `url_key` (resolving trending.md's open question: a tweet linking an article clusters with the HN/RSS entries for that article). Legacy shapes (bare array, `{tweets}`, `id_str`/`full_text`) still parse. Fixture + unit tests rewritten to mirror the real envelope; live test accepts profile URLs, normalized like the Sources route.
 
 **Verified:** `bun run test` 55 pass / 0 fail; `tsc --noEmit` clean. Live with real cookies: `whoami` authenticated (@iamerickdamon), `user-posts` for the configured profile parsed into sane entries — `bun run test:live` 4 pass / 0 fail (YouTube @aiDotEngineer resolution + 15-video detection feed, HN front page, X auth + profile fetch, real `claude -p` contract round-trip).
+
+## M5 follow-up — Floxy session format pinned from a real credential (2026-08-20)
+
+**Found:** the M5 guess (`<username>-session-<id>` in the proxy username) was wrong — a real Floxy credential (`host:port:username:password`) shows rotation is encoded in the **password** as underscore-delimited suffixes: `<password>_session-<id>_lifetime-<seconds>`. Session ids must be purely alphanumeric (the old `ses_xxxxxx` id contained an underscore, which would corrupt Floxy's password parsing).
+
+**Fixed (spec updated first — plans/settings.md):** `proxy/floxy.ts` now builds `password_session-<alnum>_lifetime-300` with a bare username.
+
+**Verified live:** "Test connection" path fetches youtube.com/robots.txt through a fresh session ✓; three consecutive sessions produced three different residential exit IPs (rotation confirmed); Telegram `sendTest` delivered a real message to the owner's chat ✓. Fast suite 55/55, tsc clean.
+
+## Doctor + clear-history (2026-08-20)
+
+**Built:** `bun run doctor` (`doctor.ts`) — dependency & credential checkup with a fix hint per finding: bun + node_modules, SQLite migrations, claude CLI presence AND login (one tiny live `claude -p` call), Telegram token validity via getMe (no message sent), Floxy connectivity through a fresh session, `twitter` binary + cookie auth — including the "cookies in .env.local but not in Settings" trap, called out explicitly since the app only reads Settings. `✕` blockers exit 1; `!` warnings mean one feature degrades. Root `AGENTS.md` (onboarding: run the doctor first on any fresh machine; repo layout; commands; spec-first rules; secrets handling) + `CLAUDE.md` that only imports it.
+
+Also: **Settings → Danger zone → "Clear history data"** (spec'd in plans/settings.md first): POST `/api/settings/clear-history` deletes entries, runs/run_sources, clusters/cluster_entries, and unposted drafts — keeps sources, settings, and posted threads (the voice-example pool). Refused with 409 while a check is running. After clearing, each source's next fetch hits the initial-import rule: current items recorded as seen, no Telegram blast, only genuinely new posts filtered from then on.
+
+**Verified:** doctor run on this machine: correctly green on claude login + twitter binary, correctly warns on unset Telegram/Floxy and the env-vs-Settings cookie split. Integration test covers the clear cycle end-to-end (counts returned, sources + posted thread survive, re-import lands as skipped/initial-import). Suite 56/56, tsc clean, vite build clean.

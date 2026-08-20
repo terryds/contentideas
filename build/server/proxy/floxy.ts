@@ -1,13 +1,14 @@
 import { getSetting } from "../db/db";
 
-// The ONLY module that knows how Floxy sessions work. A fresh session id in the
-// proxy username buys a fresh residential IP; every protected YouTube attempt
-// builds a new one.
+// The ONLY module that knows how Floxy sessions work. A fresh session id buys a
+// fresh residential IP; every protected YouTube attempt builds a new one.
 //
-// Session-rotation scheme: `<username>-session-<id>` — the common residential
-// pattern. The spec left the exact format open pending the owner's Floxy account
-// docs; if Floxy expects a different encoding (e.g. `-sessid-`), only the
-// template below changes.
+// Session-rotation scheme, pinned from a real Floxy credential example
+// (host:port:username:password): rotation is encoded in the PASSWORD as
+// underscore-delimited suffixes — `<password>_session-<id>_lifetime-<seconds>`,
+// e.g. `68f1…_session-6pssgtl6_lifetime-1200`. The username stays bare. Session
+// ids must be purely alphanumeric: an underscore inside the id would break
+// Floxy's underscore parsing of the password field.
 
 export interface ProxySession {
   /** Full proxy URL for fetch()'s `proxy` option, credentials embedded. */
@@ -24,10 +25,11 @@ export function buildProxySession(): ProxySession {
   if (!host || !port || !username || !password) {
     throw new Error("Floxy proxy not configured — add host, port, username, and password in Settings");
   }
-  const sessionId = `ses_${Math.random().toString(36).slice(2, 8)}`;
-  const sessionUser = `${username}-session-${sessionId}`;
+  const sessionId = Math.random().toString(36).slice(2, 10); // alphanumeric only
+  // 5 min is ample for one transcript fetch; each attempt rotates anyway.
+  const sessionPassword = `${password}_session-${sessionId}_lifetime-300`;
   return {
-    url: `http://${encodeURIComponent(sessionUser)}:${encodeURIComponent(password)}@${host}:${port}`,
+    url: `http://${encodeURIComponent(username)}:${encodeURIComponent(sessionPassword)}@${host}:${port}`,
     sessionId,
   };
 }

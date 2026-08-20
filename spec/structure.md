@@ -4,7 +4,10 @@ Everything lives in `build/` (the project root next to `planning/` and `spec/` s
 
 ```
 build/
-├── package.json            # scripts: dev (server + vite dev), build (vite build), start (bun server/index.ts)
+├── package.json            # scripts: dev (server + vite dev), build (vite build), start (bun server/index.ts),
+│                           #          test / test:live (M8), doctor (dependency & credential checkup)
+├── doctor.ts               # `bun run doctor` — verifies bun, DB migrations, claude CLI login, Telegram,
+│                           # Floxy, twitter CLI + cookies; ✓/!/✕ per check with a fix hint; exit 1 on failures
 ├── tsconfig.json
 ├── .gitignore              # data/, web/dist/, node_modules/
 ├── server/
@@ -63,6 +66,8 @@ build/
 └── data/
     └── content-engine.db   # SQLite incl. secrets — gitignored, never leaves the machine
 ```
+
+At the repo root (outside `build/`): `AGENTS.md` — onboarding + rules for coding agents (run `bun run doctor` first on a fresh machine; spec-first workflow) — and `CLAUDE.md`, which only imports AGENTS.md.
 
 ## Conventions
 

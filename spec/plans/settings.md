@@ -16,6 +16,8 @@ Sections per the [mockup](../../planning/4-mockups/settings.html), all persisted
 - **Thread generation prompt:** multiline textarea, same split: voice/format wishes here, JSON output contract in code. Plus **voice examples count** select (last 3 / 5 / 10 posted threads).
 - Defaults on fresh install: 30-min interval, both prompts pre-filled with sensible starter text (adapted from the mockups), everything else empty.
 
+- **Danger zone — Clear history data** *(v1.2)*: one confirm-guarded action that deletes all ingested entries, runs/run history, clusters, and **unposted** drafts — keeping sources, settings, and **posted threads** (they are the voice-example pool; clearing history shouldn't lobotomize the writing voice). After clearing, each source's next fetch counts as a first fetch again → the initial-import rule applies, so current feed contents are recorded as seen without a Telegram blast; only genuinely new posts from then on get filtered and notified. Refused with a clear error while a check is running.
+
 ## Secrets handling
 
 - Secrets stored in SQLite (local, gitignored — accepted for a single-user localhost tool).
@@ -29,4 +31,4 @@ Sections per the [mockup](../../planning/4-mockups/settings.html), all persisted
 
 - Missing credentials at run time: the dependent source/notification fails with "not configured — add it in Settings" in run history; everything else proceeds.
 - Chat ID and port validated as numeric on save.
-- Open: Floxy session-rotation format (how username encodes a fresh session id) — pin the exact scheme from the user's Floxy account docs during M2; keep it inside `proxy/floxy.ts`.
+- ~~Open: Floxy session-rotation format~~ **Pinned from a real Floxy example (2026-08-20):** credentials are `host:port:username:password`, and rotation is encoded in the **password** as underscore-delimited suffixes — `<password>_session-<alnum-id>_lifetime-<seconds>` (e.g. `…_session-6pssgtl6_lifetime-1200`). Username stays bare. Session ids must be alphanumeric (an underscore would break Floxy's password parsing). Kept inside `proxy/floxy.ts`.
