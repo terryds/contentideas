@@ -41,6 +41,7 @@ export interface Source {
   check_interval: string;
   max_records: number;
   last_fetched_at: string | null;
+  schedule_times: string | null;
   health_status: "ok" | "retrying" | "failed" | null;
   health_error: string | null;
   health_run_id: number | null;
@@ -144,12 +145,12 @@ export interface SettingsPayload {
 
 export const api = {
   listSources: () => request<{ sources: Source[] }>("/api/sources"),
-  addSource: (type: SourceType, input: string, check_interval: string, max_records: number) =>
+  addSource: (type: SourceType, input: string, check_interval: string, max_records: number, schedule_times?: string) =>
     request<{ id: number; display_name: string }>("/api/sources", {
       method: "POST",
-      body: JSON.stringify({ type, input, check_interval, max_records }),
+      body: JSON.stringify({ type, input, check_interval, max_records, schedule_times }),
     }),
-  updateSource: (id: number, cadence: { check_interval?: string; max_records?: number }) =>
+  updateSource: (id: number, cadence: { check_interval?: string; max_records?: number; schedule_times?: string }) =>
     request<{ ok: true }>(`/api/sources/${id}`, { method: "PUT", body: JSON.stringify(cadence) }),
   pauseSource: (id: number) => request<{ ok: true }>(`/api/sources/${id}/pause`, { method: "POST" }),
   resumeSource: (id: number) => request<{ ok: true }>(`/api/sources/${id}/resume`, { method: "POST" }),

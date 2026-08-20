@@ -12,6 +12,8 @@ export interface SourceRow {
   check_interval: string;
   max_records: number;
   last_fetched_at: string | null;
+  /** Clock mode: "07:00,19:00" in the owner's timezone; null = interval mode. */
+  schedule_times: string | null;
 }
 
 export const SOURCE_INTERVALS = ["15m", "30m", "1h", "3h", "6h", "12h", "24h"] as const;

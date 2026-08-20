@@ -13,6 +13,7 @@ interface TestState {
 }
 
 const SECTION_OF: Record<string, string> = {
+  timezone: "Time zone",
   telegram_bot_token: "Telegram",
   telegram_chat_id: "Telegram",
   floxy_host: "Floxy proxy",
@@ -124,6 +125,22 @@ export function Settings() {
       <p className="page-note">
         Credentials, schedule, and the two prompts that define your engine. Secrets live only in the local SQLite file.
       </p>
+
+      <Card style={{ padding: 24, marginBottom: 24 }}>
+        <h2>Time zone</h2>
+        <p className="sec-note">
+          Used to interpret sources scheduled "at set times" (e.g. 07:00, 19:00). IANA name.
+        </p>
+        <Field label="Time zone" style={{ maxWidth: 280 }}>
+          <input
+            type="text"
+            className="mono-input"
+            placeholder="e.g. Asia/Jakarta"
+            value={current("timezone")}
+            onChange={(e) => edit("timezone", e.target.value)}
+          />
+        </Field>
+      </Card>
 
       <Card style={{ padding: 24, marginBottom: 24 }}>
         <h2>Telegram</h2>

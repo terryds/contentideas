@@ -39,12 +39,62 @@ const INTERVAL_OPTIONS: { value: string; label: string }[] = [
   { value: "12h", label: "every 12 hours" },
   { value: "24h", label: "daily" },
 ];
+const TIMES_MODE = "times"; // sentinel select value for clock mode
+
+// Schedule editor: interval select with an "at set times…" mode that reveals a
+// times input ("07:00, 19:00", interpreted in the Settings timezone).
+function CadenceEditor({
+  interval,
+  scheduleTimes,
+  onSave,
+}: {
+  interval: string;
+  scheduleTimes: string | null;
+  onSave: (cadence: { check_interval?: string; schedule_times?: string }) => void;
+}) {
+  const [mode, setMode] = useState(scheduleTimes ? TIMES_MODE : interval);
+  const clockMode = mode === TIMES_MODE;
+  return (
+    <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+      <select
+        value={mode}
+        style={{ fontSize: 13, padding: "5px 8px" }}
+        onChange={(e) => {
+          const next = e.target.value;
+          setMode(next);
+          if (next !== TIMES_MODE) onSave({ check_interval: next, schedule_times: "" });
+          // switching TO clock mode saves once times are typed (blur below)
+        }}
+      >
+        {INTERVAL_OPTIONS.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+        <option value={TIMES_MODE}>at set times…</option>
+      </select>
+      {clockMode && (
+        <input
+          type="text"
+          placeholder="07:00, 19:00"
+          defaultValue={scheduleTimes ?? ""}
+          style={{ width: 120, fontSize: 13, padding: "5px 8px" }}
+          onBlur={(e) => {
+            const value = e.target.value.trim();
+            if (value && value !== (scheduleTimes ?? "")) onSave({ schedule_times: value });
+          }}
+        />
+      )}
+    </span>
+  );
+}
 
 export function Sources() {
   const [sources, setSources] = useState<Source[]>([]);
   const [type, setType] = useState<SourceType>("youtube");
   const [input, setInput] = useState("");
-  const [checkInterval, setCheckInterval] = useState("30m");
+  const [checkInterval, setCheckInterval] = useState("30m"); // may hold the "times" sentinel
+  const [addTimes, setAddTimes] = useState("");
   const [maxRecords, setMaxRecords] = useState(30);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -65,7 +115,8 @@ export function Sources() {
     setError(null);
     setAdding(true);
     try {
-      await api.addSource(type, input, checkInterval, maxRecords);
+      const clockMode = checkInterval === TIMES_MODE;
+      await api.addSource(type, input, clockMode ? "30m" : checkInterval, maxRecords, clockMode ? addTimes : undefined);
       setInput("");
       await load();
     } catch (err) {
@@ -134,8 +185,15 @@ export function Sources() {
                   {o.label}
                 </option>
               ))}
+              <option value={TIMES_MODE}>at set times…</option>
             </select>
           </label>
+          {checkInterval === TIMES_MODE && (
+            <label className="field" style={{ margin: 0, width: 150 }}>
+              <span>Times (your timezone)</span>
+              <input type="text" placeholder="07:00, 19:00" value={addTimes} onChange={(e) => setAddTimes(e.target.value)} />
+            </label>
+          )}
           <label className="field" style={{ margin: 0, width: 110 }}>
             <span>Max records</span>
             <input
@@ -196,17 +254,11 @@ export function Sources() {
                       </div>
                     </td>
                     <td>
-                      <select
-                        value={source.check_interval}
-                        style={{ fontSize: 13, padding: "5px 8px" }}
-                        onChange={(e) => updateCadence(source.id, { check_interval: e.target.value })}
-                      >
-                        {INTERVAL_OPTIONS.map((o) => (
-                          <option key={o.value} value={o.value}>
-                            {o.label}
-                          </option>
-                        ))}
-                      </select>
+                      <CadenceEditor
+                        interval={source.check_interval}
+                        scheduleTimes={source.schedule_times}
+                        onSave={(cadence) => updateCadence(source.id, cadence)}
+                      />
                     </td>
                     <td>
                       <input

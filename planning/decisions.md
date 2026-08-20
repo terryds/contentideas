@@ -41,3 +41,4 @@ One line per decision + why. Append-only.
 - [v1.2] initial-import rule REMOVED (reverses the M1-era decision) — owner prefers full judgment on first fetches and post-clear re-imports over a silent baseline, accepting per-item claude cost and notification bursts
 - [v1.2] per-source cadence over one global interval — each source sets check_interval + max_records at add time (editable inline); scheduler = one master minute-tick fetching only due sources; global Schedule setting removed
 - [v1.2] filter judgments 3-concurrent (was serial) — full judgment of first fetches made serial runtime unacceptable; abort semantics preserved
+- [v1.2] clock-mode schedules: per-source "at set times" (HH:MM list) in ONE global timezone setting — per-source timezones rejected as overkill; missed slots fire exactly once at boot, never queue

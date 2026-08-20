@@ -56,11 +56,15 @@ const migrations: string[] = [
   ALTER TABLE sources ADD COLUMN max_records INTEGER NOT NULL DEFAULT 30;
   ALTER TABLE sources ADD COLUMN last_fetched_at TEXT;
   `,
+  // 6 — clock-mode schedules: explicit times of day ("07:00,19:00"), interpreted
+  // in the owner's timezone (settings key "timezone"). Null = interval mode.
+  "ALTER TABLE sources ADD COLUMN schedule_times TEXT",
 ];
 
 const defaultSettings: Record<string, string> = {
   voice_examples_count: "5",
   trending_threshold: "2",
+  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
   taste_prompt:
     "You are my content scout. I write threads for indie hackers and AI-curious developers. " +
     "Match entries about: AI coding economics and real cost breakdowns, solo-founder pricing and monetization, " +

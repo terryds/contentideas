@@ -3,8 +3,9 @@ import { db, nowIso } from "../db/db";
 import { fetchFeed } from "../fetchers/rss";
 import { resolveChannel, fetchChannelFeed } from "../fetchers/youtube";
 import { INTERVAL_MS, MAX_RECORDS_LIMIT, type SourceRow, type SourceType } from "../fetchers/types";
+import { MAX_SCHEDULE_TIMES, parseScheduleTimes } from "../clock";
 
-function validCadence(interval: unknown, maxRecords: unknown): string | null {
+function validCadence(interval: unknown, maxRecords: unknown, scheduleTimes: unknown): string | null {
   if (interval !== undefined && !(typeof interval === "string" && interval in INTERVAL_MS)) {
     return `Interval must be one of ${Object.keys(INTERVAL_MS).join(", ")}`;
   }
@@ -14,7 +15,18 @@ function validCadence(interval: unknown, maxRecords: unknown): string | null {
       return `Max records must be a whole number from 1 to ${MAX_RECORDS_LIMIT}`;
     }
   }
+  // schedule_times: "" clears (interval mode); otherwise comma-separated HH:MM.
+  if (scheduleTimes !== undefined && scheduleTimes !== "" && scheduleTimes !== null) {
+    if (typeof scheduleTimes !== "string" || !parseScheduleTimes(scheduleTimes)) {
+      return `Times must be comma-separated HH:MM (24h), up to ${MAX_SCHEDULE_TIMES} — e.g. "07:00, 19:00"`;
+    }
+  }
   return null;
+}
+
+function normalizeTimes(scheduleTimes: string | null | undefined): string | null {
+  if (!scheduleTimes) return null;
+  return parseScheduleTimes(scheduleTimes)?.join(",") ?? null;
 }
 
 const sources = new Hono();
@@ -56,16 +68,18 @@ sources.post("/", async (c) => {
     input?: string;
     check_interval?: string;
     max_records?: number;
+    schedule_times?: string;
   };
   const type = body.type;
   const input = (body.input ?? "").trim();
   if (!type || !["youtube", "twitter", "hn", "rss"].includes(type)) {
     return c.json({ error: "Pick a source type" }, 400);
   }
-  const cadenceError = validCadence(body.check_interval, body.max_records);
+  const cadenceError = validCadence(body.check_interval, body.max_records, body.schedule_times);
   if (cadenceError) return c.json({ error: cadenceError }, 400);
   const checkInterval = body.check_interval ?? "30m";
   const maxRecords = body.max_records ?? 30;
+  const scheduleTimes = normalizeTimes(body.schedule_times);
 
   let handleOrUrl = input;
   let displayName = input;
@@ -100,25 +114,33 @@ sources.post("/", async (c) => {
 
   const id = db
     .prepare(
-      "INSERT INTO sources (type, handle_or_url, display_name, channel_id, active, created_at, check_interval, max_records) VALUES (?, ?, ?, ?, 1, ?, ?, ?)",
+      "INSERT INTO sources (type, handle_or_url, display_name, channel_id, active, created_at, check_interval, max_records, schedule_times) VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)",
     )
-    .run(type, handleOrUrl, displayName, channelId, nowIso(), checkInterval, maxRecords).lastInsertRowid;
+    .run(type, handleOrUrl, displayName, channelId, nowIso(), checkInterval, maxRecords, scheduleTimes).lastInsertRowid;
   return c.json({ id, display_name: displayName }, 201);
 });
 
-// Inline cadence editing from the Sources table (v1.2).
+// Inline cadence editing from the Sources table (v1.2). Sending schedule_times
+// switches the source to clock mode; sending "" clears it back to its interval.
 sources.put("/:id", async (c) => {
-  const body = (await c.req.json().catch(() => ({}))) as { check_interval?: string; max_records?: number };
-  if (body.check_interval === undefined && body.max_records === undefined) {
-    return c.json({ error: "Send check_interval and/or max_records" }, 400);
+  const body = (await c.req.json().catch(() => ({}))) as {
+    check_interval?: string;
+    max_records?: number;
+    schedule_times?: string;
+  };
+  if (body.check_interval === undefined && body.max_records === undefined && body.schedule_times === undefined) {
+    return c.json({ error: "Send check_interval, max_records, and/or schedule_times" }, 400);
   }
-  const cadenceError = validCadence(body.check_interval, body.max_records);
+  const cadenceError = validCadence(body.check_interval, body.max_records, body.schedule_times);
   if (cadenceError) return c.json({ error: cadenceError }, 400);
   const existing = db.prepare("SELECT * FROM sources WHERE id = ?").get(c.req.param("id")) as SourceRow | null;
   if (!existing) return c.json({ error: "Source not found" }, 404);
-  db.prepare("UPDATE sources SET check_interval = ?, max_records = ? WHERE id = ?").run(
+  const scheduleTimes =
+    body.schedule_times === undefined ? existing.schedule_times : normalizeTimes(body.schedule_times);
+  db.prepare("UPDATE sources SET check_interval = ?, max_records = ?, schedule_times = ? WHERE id = ?").run(
     body.check_interval ?? existing.check_interval,
     body.max_records ?? existing.max_records,
+    scheduleTimes,
     existing.id,
   );
   return c.json({ ok: true });

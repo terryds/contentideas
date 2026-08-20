@@ -148,6 +148,34 @@ describe("ingestion pipeline", () => {
     ).toBe(400);
   }, 30_000);
 
+  test("clock-mode source is due exactly when a scheduled time has passed since its last fetch", async () => {
+    const res = await app.request("/api/sources", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ type: "rss", input: feed.url, schedule_times: "07:00, 19:00" }),
+    });
+    expect(res.status).toBe(201);
+
+    // Never fetched → due immediately.
+    expect(await runOnce("cron")).not.toBeNull();
+
+    // Just fetched → not due until the next scheduled time.
+    expect(await runOnce("cron")).toBeNull();
+
+    // Pretend the last fetch happened 25h ago — a scheduled slot has certainly
+    // passed since then, so the source is due (missed slots fire once).
+    db.prepare("UPDATE sources SET last_fetched_at = ?").run(new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString());
+    expect(await runOnce("cron")).not.toBeNull();
+
+    // Bad times are rejected.
+    const bad = await app.request("/api/sources", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ type: "rss", input: feed.url + "?x=1", schedule_times: "25:00" }),
+    });
+    expect(bad.status).toBe(400);
+  }, 30_000);
+
   test("clear-history wipes ingestion state, keeps voice pool, re-judges on next run", async () => {
     await addFixtureSource();
     await runOnce("manual"); // ingests + judges 2 entries

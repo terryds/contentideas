@@ -20,6 +20,7 @@ export const PLAIN_KEYS = [
   "generation_prompt",
   "voice_examples_count",
   "trending_threshold",
+  "timezone",
 ] as const;
 
 settings.get("/", (c) => {
@@ -47,6 +48,11 @@ settings.put("/", async (c) => {
       return c.json({ error: "Voice examples count must be 3, 5, or 10" }, 400);
     if (key === "trending_threshold" && !/^[2-9]$/.test(value))
       return c.json({ error: "Trending threshold must be a number from 2 to 9" }, 400);
+    if (key === "timezone") {
+      const { validTimezone } = await import("../clock");
+      if (!value || !validTimezone(value))
+        return c.json({ error: `Unknown timezone "${value}" — use an IANA name like Asia/Jakarta` }, 400);
+    }
     updates.push([key, value]);
   }
 

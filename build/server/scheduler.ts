@@ -1,4 +1,5 @@
-import { appendRunError, db, nowIso } from "./db/db";
+import { appendRunError, db, getSetting, nowIso } from "./db/db";
+import { latestOccurrence, nextOccurrence, parseScheduleTimes } from "./clock";
 import { rssFetcher } from "./fetchers/rss";
 import { hackerNewsFetcher } from "./fetchers/hackernews";
 import { youtubeFetcher } from "./fetchers/youtube";
@@ -41,10 +42,21 @@ function intervalMs(source: SourceRow): number {
   return INTERVAL_MS[source.check_interval] ?? INTERVAL_MS["30m"];
 }
 
+function timezone(): string {
+  return getSetting("timezone") || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+}
+
 function isDue(source: SourceRow, now: number): boolean {
   if (!source.last_fetched_at) return true;
-  // 5s slack so a fetch stamped just after a tick doesn't slip a whole minute.
-  return now - Date.parse(source.last_fetched_at) >= intervalMs(source) - 5_000;
+  const lastFetched = Date.parse(source.last_fetched_at);
+  const times = source.schedule_times ? parseScheduleTimes(source.schedule_times) : null;
+  if (times) {
+    // Clock mode: due when a scheduled occurrence has passed since the last
+    // fetch. A missed slot (app offline) fires exactly once at boot.
+    return latestOccurrence(times, timezone(), now) > lastFetched;
+  }
+  // Interval mode; 5s slack so a fetch stamped just after a tick doesn't slip a whole minute.
+  return now - lastFetched >= intervalMs(source) - 5_000;
 }
 
 /** Earliest upcoming per-source due time across active sources. Null when none. */
@@ -53,7 +65,13 @@ export function nextRunAt(): string | null {
   if (sources.length === 0) return null;
   const now = Date.now();
   const next = Math.min(
-    ...sources.map((s) => (s.last_fetched_at ? Date.parse(s.last_fetched_at) + intervalMs(s) : now)),
+    ...sources.map((s) => {
+      if (!s.last_fetched_at) return now;
+      if (isDue(s, now)) return now;
+      const times = s.schedule_times ? parseScheduleTimes(s.schedule_times) : null;
+      if (times) return nextOccurrence(times, timezone(), now);
+      return Date.parse(s.last_fetched_at) + intervalMs(s);
+    }),
   );
   return new Date(Math.max(next, now)).toISOString();
 }
