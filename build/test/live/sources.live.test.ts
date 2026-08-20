@@ -74,7 +74,8 @@ describe.skipIf(!twitterReady || config.twitter.length === 0)("live: X profiles 
       const normalized = profile.trim().match(/@?([A-Za-z0-9_]{1,15})\s*$/)?.[1];
       expect(normalized, `${profile}: not a handle or profile URL`).toBeTruthy();
       const entries = await twitterFetcher.fetch({
-        id: 0, type: "twitter", handle_or_url: `@${normalized}`, display_name: profile, channel_id: null, active: 1, created_at: "",
+        id: 0, type: "twitter", handle_or_url: `@${normalized}`, display_name: profile, channel_id: null, active: 1,
+        created_at: "", check_interval: "30m", max_records: 30, last_fetched_at: null,
       });
       expectSaneEntries(entries, profile);
     }

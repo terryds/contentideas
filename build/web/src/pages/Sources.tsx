@@ -30,31 +30,31 @@ function healthCell(source: Source) {
   );
 }
 
+const INTERVAL_OPTIONS: { value: string; label: string }[] = [
+  { value: "15m", label: "every 15 min" },
+  { value: "30m", label: "every 30 min" },
+  { value: "1h", label: "every hour" },
+  { value: "3h", label: "every 3 hours" },
+  { value: "6h", label: "every 6 hours" },
+  { value: "12h", label: "every 12 hours" },
+  { value: "24h", label: "daily" },
+];
+
 export function Sources() {
   const [sources, setSources] = useState<Source[]>([]);
-  const [interval, setIntervalText] = useState<string | null>(null);
   const [type, setType] = useState<SourceType>("youtube");
   const [input, setInput] = useState("");
+  const [checkInterval, setCheckInterval] = useState("30m");
+  const [maxRecords, setMaxRecords] = useState(30);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
-
-  const INTERVAL_TEXT: Record<string, string> = {
-    "1m": "every minute (test)",
-    "15m": "every 15 min",
-    "30m": "every 30 min",
-    "1h": "every hour",
-    "3h": "every 3 hours",
-  };
 
   const load = useCallback(async () => {
     try {
       setSources((await api.listSources()).sources);
-      const settings = await api.getSettings();
-      setIntervalText(INTERVAL_TEXT[settings.values.check_interval ?? ""] ?? null);
     } catch {
       /* global banner covers unreachable */
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -65,13 +65,22 @@ export function Sources() {
     setError(null);
     setAdding(true);
     try {
-      await api.addSource(type, input);
+      await api.addSource(type, input, checkInterval, maxRecords);
       setInput("");
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setAdding(false);
+    }
+  };
+
+  const updateCadence = async (id: number, cadence: { check_interval?: string; max_records?: number }) => {
+    try {
+      await api.updateSource(id, cadence);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -86,7 +95,7 @@ export function Sources() {
       <h1>Sources</h1>
       <p className="page-note">
         {sources.length
-          ? `${sources.length} source${sources.length === 1 ? "" : "s"}${interval ? ` · checked ${interval}` : ""} · YouTube goes through Floxy with a fresh IP per fetch.`
+          ? `${sources.length} source${sources.length === 1 ? "" : "s"} · each checked on its own schedule · YouTube goes through Floxy with a fresh IP per fetch.`
           : "Add your first source — the next run will pick it up."}
       </p>
 
@@ -117,6 +126,26 @@ export function Sources() {
               />
             </label>
           )}
+          <label className="field" style={{ margin: 0, maxWidth: "none" }}>
+            <span>Check</span>
+            <select value={checkInterval} onChange={(e) => setCheckInterval(e.target.value)}>
+              {INTERVAL_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field" style={{ margin: 0, width: 110 }}>
+            <span>Max records</span>
+            <input
+              type="number"
+              min={1}
+              max={100}
+              value={maxRecords}
+              onChange={(e) => setMaxRecords(Number(e.target.value))}
+            />
+          </label>
           <Button variant="primary" onClick={add} disabled={adding || (type !== "hn" && !input.trim())}>
             {adding ? "Adding…" : "Add source"}
           </Button>
@@ -132,6 +161,8 @@ export function Sources() {
                 <tr>
                   <th>Type</th>
                   <th>Source</th>
+                  <th>Check</th>
+                  <th>Max</th>
                   <th>Last checked</th>
                   <th>New (7d)</th>
                   <th>Matched (7d)</th>
@@ -163,6 +194,32 @@ export function Sources() {
                       <div className="src" style={{ color: "var(--muted)", fontSize: 12 }}>
                         {source.handle_or_url}
                       </div>
+                    </td>
+                    <td>
+                      <select
+                        value={source.check_interval}
+                        style={{ fontSize: 13, padding: "5px 8px" }}
+                        onChange={(e) => updateCadence(source.id, { check_interval: e.target.value })}
+                      >
+                        {INTERVAL_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <input
+                        type="number"
+                        min={1}
+                        max={100}
+                        defaultValue={source.max_records}
+                        style={{ width: 64, fontSize: 13, padding: "5px 8px" }}
+                        onBlur={(e) => {
+                          const n = Number(e.target.value);
+                          if (n !== source.max_records) updateCadence(source.id, { max_records: n });
+                        }}
+                      />
                     </td>
                     <td className="num">{source.active ? formatTime(source.last_checked) : "—"}</td>
                     <td className="num">{source.active ? source.new_7d : "—"}</td>

@@ -39,3 +39,5 @@ One line per decision + why. Append-only.
 - [v1.2] `bun run doctor` + root AGENTS.md/CLAUDE.md — every external integration was once broken by a wrong assumption; onboarding now starts with a checkup instead of a 3am cron failure
 - [v1.2] clear-history keeps posted threads — wiping history shouldn't lobotomize the learned voice; re-import lands as initial-import so clearing never re-blasts Telegram
 - [v1.2] initial-import rule REMOVED (reverses the M1-era decision) — owner prefers full judgment on first fetches and post-clear re-imports over a silent baseline, accepting per-item claude cost and notification bursts
+- [v1.2] per-source cadence over one global interval — each source sets check_interval + max_records at add time (editable inline); scheduler = one master minute-tick fetching only due sources; global Schedule setting removed
+- [v1.2] filter judgments 3-concurrent (was serial) — full judgment of first fetches made serial runtime unacceptable; abort semantics preserved

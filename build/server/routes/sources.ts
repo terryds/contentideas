@@ -2,7 +2,20 @@ import { Hono } from "hono";
 import { db, nowIso } from "../db/db";
 import { fetchFeed } from "../fetchers/rss";
 import { resolveChannel, fetchChannelFeed } from "../fetchers/youtube";
-import type { SourceRow, SourceType } from "../fetchers/types";
+import { INTERVAL_MS, MAX_RECORDS_LIMIT, type SourceRow, type SourceType } from "../fetchers/types";
+
+function validCadence(interval: unknown, maxRecords: unknown): string | null {
+  if (interval !== undefined && !(typeof interval === "string" && interval in INTERVAL_MS)) {
+    return `Interval must be one of ${Object.keys(INTERVAL_MS).join(", ")}`;
+  }
+  if (maxRecords !== undefined) {
+    const n = Number(maxRecords);
+    if (!Number.isInteger(n) || n < 1 || n > MAX_RECORDS_LIMIT) {
+      return `Max records must be a whole number from 1 to ${MAX_RECORDS_LIMIT}`;
+    }
+  }
+  return null;
+}
 
 const sources = new Hono();
 
@@ -38,12 +51,21 @@ function normalizeHandle(input: string): string {
 }
 
 sources.post("/", async (c) => {
-  const body = (await c.req.json().catch(() => ({}))) as { type?: SourceType; input?: string };
+  const body = (await c.req.json().catch(() => ({}))) as {
+    type?: SourceType;
+    input?: string;
+    check_interval?: string;
+    max_records?: number;
+  };
   const type = body.type;
   const input = (body.input ?? "").trim();
   if (!type || !["youtube", "twitter", "hn", "rss"].includes(type)) {
     return c.json({ error: "Pick a source type" }, 400);
   }
+  const cadenceError = validCadence(body.check_interval, body.max_records);
+  if (cadenceError) return c.json({ error: cadenceError }, 400);
+  const checkInterval = body.check_interval ?? "30m";
+  const maxRecords = body.max_records ?? 30;
 
   let handleOrUrl = input;
   let displayName = input;
@@ -78,10 +100,28 @@ sources.post("/", async (c) => {
 
   const id = db
     .prepare(
-      "INSERT INTO sources (type, handle_or_url, display_name, channel_id, active, created_at) VALUES (?, ?, ?, ?, 1, ?)",
+      "INSERT INTO sources (type, handle_or_url, display_name, channel_id, active, created_at, check_interval, max_records) VALUES (?, ?, ?, ?, 1, ?, ?, ?)",
     )
-    .run(type, handleOrUrl, displayName, channelId, nowIso()).lastInsertRowid;
+    .run(type, handleOrUrl, displayName, channelId, nowIso(), checkInterval, maxRecords).lastInsertRowid;
   return c.json({ id, display_name: displayName }, 201);
+});
+
+// Inline cadence editing from the Sources table (v1.2).
+sources.put("/:id", async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as { check_interval?: string; max_records?: number };
+  if (body.check_interval === undefined && body.max_records === undefined) {
+    return c.json({ error: "Send check_interval and/or max_records" }, 400);
+  }
+  const cadenceError = validCadence(body.check_interval, body.max_records);
+  if (cadenceError) return c.json({ error: cadenceError }, 400);
+  const existing = db.prepare("SELECT * FROM sources WHERE id = ?").get(c.req.param("id")) as SourceRow | null;
+  if (!existing) return c.json({ error: "Source not found" }, 404);
+  db.prepare("UPDATE sources SET check_interval = ?, max_records = ? WHERE id = ?").run(
+    body.check_interval ?? existing.check_interval,
+    body.max_records ?? existing.max_records,
+    existing.id,
+  );
+  return c.json({ ok: true });
 });
 
 function setActive(id: string, active: number): boolean {

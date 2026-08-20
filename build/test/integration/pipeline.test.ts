@@ -107,6 +107,47 @@ describe("ingestion pipeline", () => {
     expect((db.prepare("SELECT COUNT(*) AS n FROM entries").get() as { n: number }).n).toBe(3);
   }, 30_000);
 
+  test("per-source cadence: max_records caps the fetch; cron ticks only fetch due sources", async () => {
+    const res = await app.request("/api/sources", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ type: "rss", input: feed.url, check_interval: "15m", max_records: 1 }),
+    });
+    expect(res.status).toBe(201);
+    const { id } = (await res.json()) as { id: number };
+
+    // Manual run: fetches regardless of due-ness, but max_records=1 caps ingestion.
+    await runOnce("manual");
+    expect((db.prepare("SELECT COUNT(*) AS n FROM entries").get() as { n: number }).n).toBe(1);
+
+    // Just fetched → the next cron tick has nothing due → no run row at all.
+    expect(await runOnce("cron")).toBeNull();
+
+    // Past the interval → due again.
+    db.prepare("UPDATE sources SET last_fetched_at = ?").run(new Date(Date.now() - 16 * 60_000).toISOString());
+    expect(await runOnce("cron")).not.toBeNull();
+
+    // Inline cadence edit: valid update ok, junk rejected.
+    expect(
+      (
+        await app.request(`/api/sources/${id}`, {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ max_records: 2, check_interval: "1h" }),
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await app.request(`/api/sources/${id}`, {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ check_interval: "7m" }),
+        })
+      ).status,
+    ).toBe(400);
+  }, 30_000);
+
   test("clear-history wipes ingestion state, keeps voice pool, re-judges on next run", async () => {
     await addFixtureSource();
     await runOnce("manual"); // ingests + judges 2 entries

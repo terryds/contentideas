@@ -94,6 +94,6 @@ export async function fetchFeed(url: string): Promise<{ title: string; entries: 
 
 export const rssFetcher: Fetcher = {
   async fetch(source: SourceRow): Promise<NewEntry[]> {
-    return (await fetchFeed(source.handle_or_url)).entries;
+    return (await fetchFeed(source.handle_or_url)).entries.slice(0, source.max_records || 30);
   },
 };

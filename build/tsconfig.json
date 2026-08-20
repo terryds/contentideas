@@ -13,5 +13,5 @@
     "verbatimModuleSyntax": true,
     "types": ["bun"]
   },
-  "include": ["server", "web/src", "web/vite.config.ts"]
+  "include": ["server", "web/src", "web/vite.config.ts", "doctor.ts"]
 }

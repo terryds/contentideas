@@ -135,7 +135,19 @@ async function fetchTimedText(track: CaptionTrack, proxyUrl: string): Promise<st
     signal: AbortSignal.timeout(25_000),
   });
   if (!res.ok) throw new Error(`timedtext HTTP ${res.status}`);
-  return parseTimedText((await res.json()) as TimedTextData);
+  // YouTube soft-blocks by returning 200 with an empty/null body — surface that
+  // as a retryable "blocked" error, not a null dereference.
+  const body = await res.text();
+  let data: TimedTextData | null = null;
+  try {
+    data = body.trim() ? (JSON.parse(body) as TimedTextData) : null;
+  } catch {
+    data = null;
+  }
+  if (!data || typeof data !== "object") {
+    throw new Error("timedtext returned an empty body (soft bot-block on this IP — retrying on a fresh session)");
+  }
+  return parseTimedText(data);
 }
 
 /**

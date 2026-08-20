@@ -12,7 +12,6 @@ export const SECRET_KEYS = [
 ] as const;
 
 export const PLAIN_KEYS = [
-  "check_interval",
   "telegram_chat_id",
   "floxy_host",
   "floxy_port",
@@ -44,8 +43,6 @@ settings.put("/", async (c) => {
       return c.json({ error: "Chat ID must be numeric" }, 400);
     if (key === "floxy_port" && value && !/^\d+$/.test(value))
       return c.json({ error: "Port must be numeric" }, 400);
-    if (key === "check_interval" && !["15m", "30m", "1h", "3h"].includes(value))
-      return c.json({ error: "Interval must be one of 15m, 30m, 1h, 3h" }, 400);
     if (key === "voice_examples_count" && !["3", "5", "10"].includes(value))
       return c.json({ error: "Voice examples count must be 3, 5, or 10" }, 400);
     if (key === "trending_threshold" && !/^[2-9]$/.test(value))
@@ -56,11 +53,6 @@ settings.put("/", async (c) => {
   db.transaction(() => {
     for (const [key, value] of updates) setSetting(key, value);
   })();
-
-  // Interval changes re-register the cron job immediately (scheduler reads it lazily
-  // in M0; live re-registration lands with the scheduler milestone).
-  const { onSettingsChanged } = await import("../scheduler");
-  onSettingsChanged?.(Object.fromEntries(updates));
 
   return c.json({ ok: true });
 });

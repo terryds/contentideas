@@ -17,10 +17,10 @@ describe("migrations", () => {
   });
 
   test("default settings are seeded but never overwrite saved values", () => {
-    db.prepare("UPDATE settings SET value = '15m' WHERE key = 'check_interval'").run();
+    db.prepare("UPDATE settings SET value = '3' WHERE key = 'voice_examples_count'").run();
     migrate();
-    const value = (db.prepare("SELECT value FROM settings WHERE key = 'check_interval'").get() as { value: string }).value;
-    expect(value).toBe("15m");
+    const value = (db.prepare("SELECT value FROM settings WHERE key = 'voice_examples_count'").get() as { value: string }).value;
+    expect(value).toBe("3");
   });
 });
 

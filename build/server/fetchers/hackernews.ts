@@ -1,8 +1,8 @@
 import type { Fetcher, NewEntry, SourceRow } from "./types";
 
-// HN front page via the Firebase API. Slice size is a settings-free constant —
-// top 30 ≈ the front page. Same story re-entering the top is deduped by item id.
-const SLICE = 30;
+// HN front page via the Firebase API. Slice size = the source's max_records
+// (v1.2 per-source cadence; top 30 ≈ the front page). Same story re-entering
+// the top is deduped by item id.
 const API = "https://hacker-news.firebaseio.com/v0";
 
 interface HnItem {
@@ -15,10 +15,10 @@ interface HnItem {
 }
 
 export const hackerNewsFetcher: Fetcher = {
-  async fetch(_source: SourceRow): Promise<NewEntry[]> {
+  async fetch(source: SourceRow): Promise<NewEntry[]> {
     const res = await fetch(`${API}/topstories.json`, { signal: AbortSignal.timeout(20_000) });
     if (!res.ok) throw new Error(`HN topstories failed: HTTP ${res.status}`);
-    const ids = ((await res.json()) as number[]).slice(0, SLICE);
+    const ids = ((await res.json()) as number[]).slice(0, source.max_records || 30);
 
     const items = await Promise.all(
       ids.map(async (id): Promise<HnItem | null> => {

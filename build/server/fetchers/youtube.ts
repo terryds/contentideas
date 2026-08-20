@@ -77,6 +77,6 @@ export async function fetchChannelFeed(channelId: string): Promise<{ title: stri
 export const youtubeFetcher: Fetcher = {
   async fetch(source: SourceRow): Promise<NewEntry[]> {
     if (!source.channel_id) throw new Error("Source has no channel id — re-add this channel");
-    return (await fetchChannelFeed(source.channel_id)).entries;
+    return (await fetchChannelFeed(source.channel_id)).entries.slice(0, source.max_records || 30);
   },
 };

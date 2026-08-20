@@ -38,6 +38,9 @@ export interface Source {
   channel_id: string | null;
   active: number;
   created_at: string;
+  check_interval: string;
+  max_records: number;
+  last_fetched_at: string | null;
   health_status: "ok" | "retrying" | "failed" | null;
   health_error: string | null;
   health_run_id: number | null;
@@ -141,11 +144,13 @@ export interface SettingsPayload {
 
 export const api = {
   listSources: () => request<{ sources: Source[] }>("/api/sources"),
-  addSource: (type: SourceType, input: string) =>
+  addSource: (type: SourceType, input: string, check_interval: string, max_records: number) =>
     request<{ id: number; display_name: string }>("/api/sources", {
       method: "POST",
-      body: JSON.stringify({ type, input }),
+      body: JSON.stringify({ type, input, check_interval, max_records }),
     }),
+  updateSource: (id: number, cadence: { check_interval?: string; max_records?: number }) =>
+    request<{ ok: true }>(`/api/sources/${id}`, { method: "PUT", body: JSON.stringify(cadence) }),
   pauseSource: (id: number) => request<{ ok: true }>(`/api/sources/${id}/pause`, { method: "POST" }),
   resumeSource: (id: number) => request<{ ok: true }>(`/api/sources/${id}/resume`, { method: "POST" }),
   removeSource: (id: number) => request<{ ok: true }>(`/api/sources/${id}`, { method: "DELETE" }),

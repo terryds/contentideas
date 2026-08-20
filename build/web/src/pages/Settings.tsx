@@ -13,7 +13,6 @@ interface TestState {
 }
 
 const SECTION_OF: Record<string, string> = {
-  check_interval: "Schedule",
   telegram_bot_token: "Telegram",
   telegram_chat_id: "Telegram",
   floxy_host: "Floxy proxy",
@@ -125,20 +124,6 @@ export function Settings() {
       <p className="page-note">
         Credentials, schedule, and the two prompts that define your engine. Secrets live only in the local SQLite file.
       </p>
-
-      <Card style={{ padding: 24, marginBottom: 24 }}>
-        <h2>Schedule</h2>
-        <p className="sec-note">How often every active source gets checked.</p>
-        <Field label="Check interval" style={{ maxWidth: 220 }}>
-          <select value={current("check_interval")} onChange={(e) => edit("check_interval", e.target.value)}>
-            <option value="15m">Every 15 minutes</option>
-            <option value="30m">Every 30 minutes</option>
-            <option value="1h">Every hour</option>
-            <option value="3h">Every 3 hours</option>
-            {current("check_interval") === "1m" && <option value="1m">Every minute (test)</option>}
-          </select>
-        </Field>
-      </Card>
 
       <Card style={{ padding: 24, marginBottom: 24 }}>
         <h2>Telegram</h2>

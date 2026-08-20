@@ -49,10 +49,16 @@ const migrations: string[] = [
   ALTER TABLE entries ADD COLUMN created_run_id INTEGER;
   ALTER TABLE entries ADD COLUMN filtered_run_id INTEGER;
   `,
+  // 5 — per-source cadence: each source has its own check interval and a cap on
+  // records fetched per check; last_fetched_at drives the due-source selection.
+  `
+  ALTER TABLE sources ADD COLUMN check_interval TEXT NOT NULL DEFAULT '30m';
+  ALTER TABLE sources ADD COLUMN max_records INTEGER NOT NULL DEFAULT 30;
+  ALTER TABLE sources ADD COLUMN last_fetched_at TEXT;
+  `,
 ];
 
 const defaultSettings: Record<string, string> = {
-  check_interval: "30m",
   voice_examples_count: "5",
   trending_threshold: "2",
   taste_prompt:

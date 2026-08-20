@@ -6,7 +6,7 @@ Where the owner curates what the engine watches. Four source types behind one ta
 
 ## Behavior
 
-- **Add** ([mockup](../../planning/4-mockups/sources.html)): type select (YouTube channel / X profile / Hacker News front page / RSS feed) + URL-or-handle input. On add:
+- **Add** ([mockup](../../planning/4-mockups/sources.html)): type select (YouTube channel / X profile / Hacker News front page / RSS feed) + URL-or-handle input, plus **check interval** (15m…24h, default 30m) and **max records per check** (1–100, default 30) *(v1.2 — per-source cadence)*. Both editable inline in the table afterwards (select/number → save on change). On add:
   - YouTube: accept `youtube.com/@handle` or bare `@handle`; resolve to channel_id immediately (needed for the RSS detection feed) and store both; resolution failure → inline field error, source not created.
   - X: accept `@handle` or profile URL; store handle.
   - HN: no input needed — adding creates the singleton front-page source (hide input when selected; only one HN source allowed).

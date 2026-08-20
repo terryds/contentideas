@@ -109,3 +109,13 @@ Also: **Settings → Danger zone → "Clear history data"** (spec'd in plans/set
 **Changed (spec first — plans/ingestion.md, plans/settings.md):** `insertEntries` always inserts `pending`; the firstFetch/"initial import" branch is gone. Legacy rows keep their "initial import" reason and still render in run history (chip + explanation), and trending still excludes them. Danger-zone copy + confirm dialog now warn about the long re-judge run. Pipeline tests updated: first fetch judged, post-clear re-judged.
 
 **Verified:** suite 56/56, tsc clean, vite build clean.
+
+## Per-source cadence, filter concurrency, transcript null-guard (2026-08-20)
+
+**Transcript bug (live-caught):** YouTube soft-blocks by returning HTTP 200 with an empty timedtext body; `parseTimedText` then dereferenced `data.events` on null ("null is not an object"). `fetchTimedText` now treats an empty/unparseable body as a retryable "soft bot-block — retrying on a fresh session" error, so the attempt trace reads honestly.
+
+**Per-source cadence (owner's re-architecture, spec'd first in plans/ingestion.md + sources.md + settings.md):** each source now carries its own `check_interval` (15m…24h) and `max_records` (1–100, default 30), set on the add form and editable inline in the Sources table (migration 5: check_interval / max_records / last_fetched_at on sources). The scheduler is one master `Bun.cron` tick per minute that fetches only DUE sources (`last_fetched_at + interval <= now`, stamped at fetch start so failures can't hot-loop); a quiet tick creates no run row. "Run now" fetches everything. The global Schedule setting is gone (Settings card removed, key dropped from the API). All four fetchers respect max_records (HN's top-30 constant replaced; twitter passes `-n`).
+
+**Filter concurrency:** judgments now run 3 `claude -p` calls at a time (was serial — unacceptable once first fetches became fully judged). Abort semantics preserved: ClaudeUnavailable stops the pass immediately; 3 errors without a success in between abort it; unjudged entries stay pending.
+
+**Verified:** suite 57/57 (new test: max_records caps ingestion; a just-fetched source is not due on the next cron tick and becomes due past its interval; inline cadence PUT validates), tsc clean (doctor.ts now typechecked too), vite build clean.

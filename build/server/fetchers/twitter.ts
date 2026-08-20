@@ -131,6 +131,6 @@ export function parseTweets(out: string, handle: string): NewEntry[] {
 export const twitterFetcher: Fetcher = {
   async fetch(source: SourceRow): Promise<NewEntry[]> {
     const handle = source.handle_or_url.replace(/^@/, "");
-    return parseTweets(await runCli(["user-posts", handle, "--json", "-n", "30"]), handle);
+    return parseTweets(await runCli(["user-posts", handle, "--json", "-n", String(source.max_records || 30)]), handle);
   },
 };

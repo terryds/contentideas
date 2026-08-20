@@ -1,9 +1,9 @@
-import { appendRunError, db, getSetting, nowIso } from "./db/db";
+import { appendRunError, db, nowIso } from "./db/db";
 import { rssFetcher } from "./fetchers/rss";
 import { hackerNewsFetcher } from "./fetchers/hackernews";
 import { youtubeFetcher } from "./fetchers/youtube";
 import { twitterFetcher } from "./fetchers/twitter";
-import { sourceLabel, type Fetcher, type NewEntry, type SourceRow } from "./fetchers/types";
+import { INTERVAL_MS, sourceLabel, type Fetcher, type NewEntry, type SourceRow } from "./fetchers/types";
 import { filterEntry } from "./llm/filter";
 import { ClaudeUnavailableError } from "./llm/claude";
 import { sendMatch } from "./notify/telegram";
@@ -22,41 +22,40 @@ const BACKOFF_MS = [0, 2_000, 5_000];
 
 let currentRunId: number | null = null;
 
-/* ---------- cron scheduling ---------- */
+/* ---------- cron scheduling ----------
+ * Per-source cadence: one master tick every minute fetches only the sources
+ * that are due (last_fetched_at + check_interval <= now). A tick with nothing
+ * due creates no run row. "Run now" fetches all active sources. */
 
-// "1m" is a hidden test value (not offered in the UI) used to verify unattended runs.
-const INTERVAL_CRON: Record<string, string> = {
-  "1m": "* * * * *",
-  "15m": "*/15 * * * *",
-  "30m": "*/30 * * * *",
-  "1h": "0 * * * *",
-  "3h": "0 */3 * * *",
-};
 let cronJob: { stop(): void } | null = null;
-let currentInterval: string | null = null;
 
 export function registerSchedule(): void {
-  const interval = getSetting("check_interval") ?? "30m";
-  const expression = INTERVAL_CRON[interval] ?? INTERVAL_CRON["30m"];
-  if (cronJob && currentInterval === interval) return;
-  cronJob?.stop();
-  cronJob = Bun.cron(expression, () => {
+  if (cronJob) return;
+  cronJob = Bun.cron("* * * * *", () => {
     runOnce("cron").catch((err) => console.error("[run] cron run crashed:", err));
   });
-  currentInterval = interval;
-  console.log(`[scheduler] cron registered: every ${interval} (${expression})`);
+  console.log("[scheduler] master tick registered: every minute, due sources only");
 }
 
-/** Next cron firing. Null when nothing is scheduled. */
+function intervalMs(source: SourceRow): number {
+  return INTERVAL_MS[source.check_interval] ?? INTERVAL_MS["30m"];
+}
+
+function isDue(source: SourceRow, now: number): boolean {
+  if (!source.last_fetched_at) return true;
+  // 5s slack so a fetch stamped just after a tick doesn't slip a whole minute.
+  return now - Date.parse(source.last_fetched_at) >= intervalMs(source) - 5_000;
+}
+
+/** Earliest upcoming per-source due time across active sources. Null when none. */
 export function nextRunAt(): string | null {
-  const expression = INTERVAL_CRON[currentInterval ?? ""];
-  if (!expression) return null;
-  return Bun.cron.parse(expression)?.toISOString() ?? null;
-}
-
-/** Called by the settings route after a save; re-registers cron when the interval changes. */
-export function onSettingsChanged(changed: Record<string, string>): void {
-  if ("check_interval" in changed) registerSchedule();
+  const sources = db.prepare("SELECT * FROM sources WHERE active = 1").all() as SourceRow[];
+  if (sources.length === 0) return null;
+  const now = Date.now();
+  const next = Math.min(
+    ...sources.map((s) => (s.last_fetched_at ? Date.parse(s.last_fetched_at) + intervalMs(s) : now)),
+  );
+  return new Date(Math.max(next, now)).toISOString();
 }
 
 export function runningRunId(): number | null {
@@ -150,19 +149,22 @@ export async function runOnce(trigger: "cron" | "manual"): Promise<number | null
     return null;
   }
 
+  const all = db.prepare("SELECT * FROM sources WHERE active = 1 ORDER BY id").all() as SourceRow[];
+  // Cron ticks fetch only due sources; "Run now" fetches everything.
+  const sources = trigger === "cron" ? all.filter((s) => isDue(s, Date.now())) : all;
+  if (sources.length === 0 && trigger === "cron") return null; // quiet tick, no run row
+
   const runId = db
     .prepare("INSERT INTO runs (trigger, started_at) VALUES (?, ?)")
     .run(trigger, nowIso()).lastInsertRowid as number;
   currentRunId = runId;
-  console.log(`[run] #${runId} started (${trigger})`);
+  console.log(`[run] #${runId} started (${trigger}, ${sources.length}/${all.length} sources due)`);
 
   try {
-    const sources = db
-      .prepare("SELECT * FROM sources WHERE active = 1 ORDER BY id")
-      .all() as SourceRow[];
-
     for (const source of sources) {
       const startedAt = Date.now();
+      // Stamp at fetch start — a crashing source must not become due again next minute.
+      db.prepare("UPDATE sources SET last_fetched_at = ? WHERE id = ?").run(nowIso(), source.id);
       // One source failing must never affect the others.
       let result: SourceResult;
       try {
@@ -192,10 +194,15 @@ export async function runOnce(trigger: "cron" | "manual"): Promise<number | null
   return runId;
 }
 
+// How many claude -p judgments run at once. Serial was fine when only deltas
+// were filtered; with first fetches fully judged, a pool keeps runs tolerable.
+const FILTER_CONCURRENCY = 3;
+
 /**
  * Judge every pending entry — including leftovers from previous runs — against
- * the taste prompt. Serial on purpose (keeps `claude -p` load sane; a busy
- * first run taking minutes is acceptable and visible in run duration).
+ * the taste prompt, FILTER_CONCURRENCY at a time. Abort semantics: a
+ * ClaudeUnavailableError stops the pass immediately; 3 errors with no success
+ * in between abort it. Unjudged entries stay pending for the next run.
  */
 async function filterPass(runId: number): Promise<void> {
   const pending = db
@@ -213,11 +220,14 @@ async function filterPass(runId: number): Promise<void> {
   }[];
   if (pending.length === 0) return;
 
-  let consecutiveErrors = 0;
-  for (const entry of pending) {
+  let nextIndex = 0;
+  let errorStreak = 0;
+  let aborted = false;
+
+  const judgeOne = async (entry: (typeof pending)[number]): Promise<void> => {
     try {
       const verdict = await filterEntry(entry);
-      consecutiveErrors = 0;
+      errorStreak = 0;
       db.prepare(
         "UPDATE entries SET filter_status = ?, filter_reason = ?, filtered_at = ?, filtered_run_id = ?, topics = ? WHERE id = ?",
       ).run(verdict.matched ? "matched" : "skipped", verdict.reason, nowIso(), runId, JSON.stringify(verdict.topics), entry.id);
@@ -247,16 +257,26 @@ async function filterPass(runId: number): Promise<void> {
       // Unparseable/errored verdict: entry stays pending, picked up next run.
       console.error(`[filter] entry ${entry.id}:`, err);
       if (err instanceof ClaudeUnavailableError) {
-        appendRunError(runId, err.message);
-        return; // systematic — no point trying the rest
-      }
-      consecutiveErrors += 1;
-      if (consecutiveErrors >= 3) {
-        appendRunError(runId, `Filter aborted after 3 consecutive errors — ${err instanceof Error ? err.message : err}. Entries remain pending and will be re-filtered next run.`);
+        if (!aborted) appendRunError(runId, err.message);
+        aborted = true; // systematic — no point trying the rest
         return;
       }
+      errorStreak += 1;
+      if (errorStreak >= 3 && !aborted) {
+        aborted = true;
+        appendRunError(runId, `Filter aborted after 3 errors in a row — ${err instanceof Error ? err.message : err}. Entries remain pending and will be re-filtered next run.`);
+      }
     }
-  }
+  };
+
+  const worker = async (): Promise<void> => {
+    while (!aborted && nextIndex < pending.length) {
+      const entry = pending[nextIndex++];
+      await judgeOne(entry);
+    }
+  };
+
+  await Promise.all(Array.from({ length: Math.min(FILTER_CONCURRENCY, pending.length) }, worker));
 }
 
 /**

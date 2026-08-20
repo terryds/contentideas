@@ -27,8 +27,7 @@ describe("settings API", () => {
     expect(JSON.stringify(data)).not.toContain("secret-token");
   });
 
-  test("validation: interval, chat id, threshold, unknown keys", async () => {
-    expect((await putSettings({ check_interval: "7m" })).status).toBe(400);
+  test("validation: chat id, threshold, unknown keys", async () => {
     expect((await putSettings({ telegram_chat_id: "abc" })).status).toBe(400);
     expect((await putSettings({ trending_threshold: "1" })).status).toBe(400);
     expect((await putSettings({ trending_threshold: "10" })).status).toBe(400);
