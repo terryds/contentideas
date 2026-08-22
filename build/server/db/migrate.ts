@@ -69,6 +69,7 @@ const defaultSettings: Record<string, string> = {
   tags: "",
   auto_draft_trending: "1",
   auto_draft_tags: "",
+  dashboard_url: "",
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
   taste_prompt:
     "You are my content scout. I write threads for indie hackers and AI-curious developers. " +

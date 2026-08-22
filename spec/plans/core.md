@@ -12,6 +12,7 @@ The foundation every feature stands on: one Bun process (Hono API + static SPA +
 - **Working state:** nav (Inbox / Sources / Runs / Settings) per the mockups' shared header; active route accent-underlined.
 - **Empty state (fresh install):** every page renders sensibly with zero rows; Inbox shows "All caught up" variant with zero counts; no crashes on empty settings — features needing missing credentials fail with a pointer to Settings.
 - **Error state:** API unreachable → SPA banner "Server not responding — is the process running?".
+- **Loading state** *(added 2026-08-20)*: pages never render zeros/empty-state cards before their first fetch resolves — a quiet "Loading…" holds the space until real data arrives.
 
 ## Data (full schema — owned here, used everywhere)
 

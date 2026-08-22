@@ -102,6 +102,12 @@ export function autoDraftTags(): string[] {
  * degrade the run, never fail it. Finishes with ONE draft digest to Telegram
  * (informational — a failed send is recorded but not retried).
  */
+/** Deep link into the dashboard's editor — when the owner has told us how they reach it. */
+export function draftPageUrl(kind: "item" | "cluster", id: number): string | null {
+  const base = (getSetting("dashboard_url") ?? "").trim().replace(/\/+$/, "");
+  return base ? `${base}/${kind}/${id}` : null;
+}
+
 export async function autoDraftPass(runId: number): Promise<void> {
   const drafted: { title: string; url: string | null; firstTweet: string }[] = [];
 
@@ -112,7 +118,7 @@ export async function autoDraftPass(runId: number): Promise<void> {
         const result = await draftClusterThread(cluster.id);
         drafted.push({
           title: cluster.title,
-          url: cluster.members.find((m) => m.url)?.url ?? null,
+          url: draftPageUrl("cluster", cluster.id) ?? cluster.members.find((m) => m.url)?.url ?? null,
           firstTweet: result.tweets[0] ?? "",
         });
       } catch (err) {
@@ -139,7 +145,11 @@ export async function autoDraftPass(runId: number): Promise<void> {
     for (const entry of candidates) {
       try {
         const result = await draftEntryThread(entry);
-        drafted.push({ title: entry.title, url: entry.url, firstTweet: result.tweets[0] ?? "" });
+        drafted.push({
+          title: entry.title,
+          url: draftPageUrl("item", entry.id) ?? entry.url,
+          firstTweet: result.tweets[0] ?? "",
+        });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         console.error(`[auto-draft] entry ${entry.id}: ${message}`);

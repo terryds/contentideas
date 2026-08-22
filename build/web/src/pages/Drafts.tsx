@@ -25,12 +25,14 @@ export function Drafts() {
   const [filter, setFilter] = useState("all");
   const [drafts, setDrafts] = useState<DraftListItem[]>([]);
   const [counts, setCounts] = useState({ total: 0, unposted: 0, posted: 0 });
+  const [loaded, setLoaded] = useState(false);
 
   const load = useCallback(async (f: string) => {
     try {
       const data = await api.listDrafts(f);
       setDrafts(data.threads);
       setCounts(data.counts);
+      setLoaded(true);
     } catch {
       /* global banner */
     }
@@ -50,7 +52,9 @@ export function Drafts() {
         Every thread drafted so far — by you or auto-generated. Click one to edit, regenerate, or mark as posted.
       </p>
 
-      <div className="row" style={{ marginBottom: 24, gap: 8 }}>
+      {!loaded && <p className="t-small">Loading…</p>}
+
+      <div className="row" style={{ marginBottom: 24, gap: 8, display: loaded ? undefined : "none" }}>
         {FILTERS.map((f) => {
           const count = f.key === "all" ? counts.total : f.key === "unposted" ? counts.unposted : counts.posted;
           return (
@@ -73,7 +77,7 @@ export function Drafts() {
         })}
       </div>
 
-      {drafts.length === 0 ? (
+      {!loaded ? null : drafts.length === 0 ? (
         <Card className="empty">
           <div className="mark">C</div>
           <h2>No drafts {filter === "all" ? "yet" : filter}</h2>

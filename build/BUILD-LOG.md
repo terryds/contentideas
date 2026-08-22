@@ -161,3 +161,11 @@ Also: **Settings → Danger zone → "Clear history data"** (spec'd in plans/set
 **Built (spec first — plans/threads.md, plans/settings.md):** drafting extracted into `server/drafts.ts` — the ONE place threads are generated (entry + cluster, incl. the YouTube transcript retry and the replace-after-successful-parse guarantee) — now shared by the dashboard routes and a new end-of-run `autoDraftPass`. Two owner controls (Settings → Auto-drafts): "from trending stories" (ON by default — every active at-threshold cluster without a thread gets a cluster draft) and "from tags" (per-tag checkboxes over the vocabulary; entries judged THIS run that matched with a selected tag and lack a thread get an entry draft). Auto-drafted threads are ordinary rows — Regenerate/edit/posted work unchanged; a subject with a thread is never re-drafted. Each run ends with ONE Telegram draft digest (bold linked title + first-tweet preview); informational — failed sends are recorded, not retried. New **Drafts** nav tab: every thread ever drafted (All/Unposted/Posted chips, counts, first-tweet preview, 📈 chip for cluster drafts), each card opening its editor; served by `GET /api/threads`.
 
 **Verified:** suite 77/77 — tag auto-drafts (threads created from a run, states → drafted, digest attempt recorded, Drafts API counts/filters, second run drafts nothing), trending auto-drafts (one cluster thread, never re-drafted, setting=0 respected), draft-digest composer. tsc + vite clean.
+
+## Loading states + draft deep links (2026-08-20)
+
+**Loading states (owner feedback: dashboard flashed "0" before data arrived):** Inbox, Drafts, Sources, and Runs now hold a quiet "Loading…" until their first fetch resolves — no zero counts, no premature empty-state cards (spec'd in plans/core.md).
+
+**Draft deep links:** new optional `dashboard_url` setting (Settings card; the server binds localhost so it can't know how the owner reaches the dashboard — Tailscale/LAN/tunnel). When set, Telegram draft-digest titles link straight to `{base}/item/:id` / `{base}/cluster/:id`; empty falls back to the source URL as before (spec'd in plans/settings.md). Validated http(s) or empty.
+
+**Verified:** suite 77/77, tsc + vite clean.

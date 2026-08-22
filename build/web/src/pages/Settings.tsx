@@ -14,6 +14,7 @@ interface TestState {
 
 const SECTION_OF: Record<string, string> = {
   timezone: "Time zone",
+  dashboard_url: "Dashboard URL",
   telegram_bot_token: "Telegram",
   telegram_chat_id: "Telegram",
   floxy_host: "Floxy proxy",
@@ -141,6 +142,23 @@ export function Settings() {
             placeholder="e.g. Asia/Jakarta"
             value={current("timezone")}
             onChange={(e) => edit("timezone", e.target.value)}
+          />
+        </Field>
+      </Card>
+
+      <Card style={{ padding: 24, marginBottom: 24 }}>
+        <h2>Dashboard URL</h2>
+        <p className="sec-note">
+          How you reach this dashboard from other devices (Tailscale, LAN, tunnel…). When set, Telegram draft
+          notifications link straight to the draft's editor page. Empty = link to the source instead.
+        </p>
+        <Field label="Base URL" style={{ maxWidth: 360 }}>
+          <input
+            type="text"
+            className="mono-input"
+            placeholder="e.g. http://100.64.0.5:4321"
+            value={current("dashboard_url")}
+            onChange={(e) => edit("dashboard_url", e.target.value)}
           />
         </Field>
       </Card>

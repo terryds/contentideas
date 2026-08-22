@@ -268,6 +268,7 @@ export function Runs() {
   const [runs, setRuns] = useState<RunWithCount[]>([]);
   const [running, setRunning] = useState<number | null>(null);
   const [nextAt, setNextAt] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const [searchParams] = useSearchParams();
   const openId = Number(searchParams.get("open")) || null;
   const timer = useRef<ReturnType<typeof setInterval>>();
@@ -278,6 +279,7 @@ export function Runs() {
       setRuns(data.runs as RunWithCount[]);
       setRunning(data.running);
       setNextAt(data.nextAt);
+      setLoaded(true);
     } catch {
       /* global banner */
     }
@@ -305,7 +307,9 @@ export function Runs() {
       </div>
       <p className="page-note">Every scheduled check, newest first. Click a run to see per-source details and errors.</p>
 
-      {runs.length === 0 ? (
+      {!loaded ? (
+        <p className="t-small">Loading…</p>
+      ) : runs.length === 0 ? (
         <div className="card empty">
           <h2>No runs yet</h2>
           <p className="t-small">

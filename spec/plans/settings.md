@@ -9,6 +9,7 @@ The engine's control panel: every credential, both prompts, and the schedule, ea
 Sections per the [mockup](../../planning/4-mockups/settings.html), all persisted to the `settings` table on **Save changes** (sticky save bar appears when dirty, names the dirty section):
 
 - ~~**Schedule:** global interval select~~ *(removed 2026-08-20 — scheduling is per source now; each source's check interval / clock times and max records live on the Sources page. The scheduler is a fixed every-minute master tick that fetches only due sources.)*
+- **Dashboard URL** *(added 2026-08-20)*: optional base URL where the owner reaches the dashboard from other devices (Tailscale/LAN/tunnel — the server itself binds localhost and can't know). When set, Telegram draft-digest titles link straight to the draft's editor page (`{base}/item/:id` / `{base}/cluster/:id`); when empty, they fall back to the source URL.
 - **Time zone** *(added 2026-08-20)*: one global `timezone` setting (IANA name like `Asia/Jakarta`), used to interpret sources' clock-mode times. Defaults to the server's zone; validated server-side via Intl.
 - **Telegram:** bot token (secret), chat ID. **Send test message** → real `sendMessage` ("Content Engine test — it works"); inline result: green "✓ Delivered HH:MM" or crimson "✕ <api error>".
 - **Floxy proxy:** host, port, username, password (secret). **Test connection** → fetch a known URL through a fresh proxy session; inline pass/fail with actionable text ("✕ 407 auth failed — check username/password").

@@ -98,10 +98,12 @@ export function Sources() {
   const [maxRecords, setMaxRecords] = useState(30);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   const load = useCallback(async () => {
     try {
       setSources((await api.listSources()).sources);
+      setLoaded(true);
     } catch {
       /* global banner covers unreachable */
     }
@@ -145,9 +147,11 @@ export function Sources() {
     <main>
       <h1>Sources</h1>
       <p className="page-note">
-        {sources.length
-          ? `${sources.length} source${sources.length === 1 ? "" : "s"} · each checked on its own schedule · YouTube goes through Floxy with a fresh IP per fetch.`
-          : "Add your first source — the next run will pick it up."}
+        {!loaded
+          ? "Loading…"
+          : sources.length
+            ? `${sources.length} source${sources.length === 1 ? "" : "s"} · each checked on its own schedule · YouTube goes through Floxy with a fresh IP per fetch.`
+            : "Add your first source — the next run will pick it up."}
       </p>
 
       <Card style={{ marginBottom: 24 }}>

@@ -166,6 +166,7 @@ export function Inbox() {
   const [lastRun, setLastRun] = useState<Run | null>(null);
   const [nextAt, setNextAt] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const pollTimer = useRef<ReturnType<typeof setTimeout>>();
 
   const load = useCallback(async (f: string) => {
@@ -177,6 +178,7 @@ export function Inbox() {
       setTagCounts(data.tagCounts ?? []);
       setLastRun(data.lastRun);
       setNextAt(data.nextAt);
+      setLoaded(true);
     } catch {
       /* banner handles unreachable; other errors leave the page as-is */
     }
@@ -231,7 +233,9 @@ export function Inbox() {
         {(lastRun || nextAt) && "."}
       </p>
 
-      <div className="row" style={{ marginBottom: 24, gap: 8 }}>
+      {!loaded && <p className="t-small">Loading…</p>}
+
+      <div className="row" style={{ marginBottom: 24, gap: 8, display: loaded ? undefined : "none" }}>
         {FILTERS.map((f) => {
           const count =
             f.key === "all" ? total : f.key === "dismissed" ? null : counts[f.key as SourceType] ?? 0;
@@ -274,7 +278,7 @@ export function Inbox() {
         ))}
       </div>
 
-      {filter === "all" && clusters.length > 0 && (
+      {loaded && filter === "all" && clusters.length > 0 && (
         <>
           <p className="sec-lbl">Trending across your sources</p>
           {clusters.map((cluster) => (
@@ -284,7 +288,7 @@ export function Inbox() {
         </>
       )}
 
-      {entries.length === 0 ? (
+      {!loaded ? null : entries.length === 0 ? (
         filter === "all" && clusters.length > 0 ? null : (
         <Card className="empty">
           <div className="mark">C</div>
