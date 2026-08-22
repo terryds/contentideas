@@ -100,6 +100,12 @@ export async function filterEntry(entry: {
       ? `tags: every tag that fits the entry, chosen strictly from: ${vocabulary.join(", ")}. Empty array if none fit.`
       : "tags: always an empty array.",
   ].join("\n");
-  const raw = await runClaudeStructured<RawVerdict>(prompt, verdictSchema(vocabulary), { timeoutMs: 60_000 });
+  // Judgment/classification runs on latest Sonnet (owner's call, 2026-08-20) —
+  // plenty for verdict+topics+tags at a fraction of the default model's cost.
+  // Thread generation stays on the default model, where voice quality matters.
+  const raw = await runClaudeStructured<RawVerdict>(prompt, verdictSchema(vocabulary), {
+    timeoutMs: 60_000,
+    model: "sonnet",
+  });
   return normalizeVerdict(raw, vocabulary);
 }

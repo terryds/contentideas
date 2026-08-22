@@ -5,6 +5,8 @@ export class ClaudeUnavailableError extends Error {}
 
 export interface RunClaudeOptions {
   timeoutMs?: number;
+  /** Model alias/id passed as --model; omitted = the CLI's default model. */
+  model?: string;
 }
 
 async function invoke(prompt: string, timeoutMs: number, extraArgs: string[] = []): Promise<string> {
@@ -90,6 +92,7 @@ export async function runClaudeStructured<T>(
 ): Promise<T> {
   const timeoutMs = options.timeoutMs ?? 60_000;
   const args = ["--output-format", "json", "--json-schema", JSON.stringify(schema)];
+  if (options.model) args.push("--model", options.model);
   let lastError: unknown;
   for (let attempt = 1; attempt <= 2; attempt++) {
     const output = await invoke(prompt, timeoutMs, args);
