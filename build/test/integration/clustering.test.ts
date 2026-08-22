@@ -1,9 +1,10 @@
 // The M7 clustering matrix — kept from the milestone verification scripts.
 
-import { describe, expect, test, beforeEach } from "bun:test";
+import { describe, expect, test, beforeAll, beforeEach } from "bun:test";
 import { db, nowIso, setSetting } from "../../server/db/db";
 import { activeClusters, distinctSourceCount, normalizeUrlKey, trendingPass } from "../../server/trending/cluster";
-import { resetDb } from "../helpers";
+import { autoDraftPass } from "../../server/drafts";
+import { claudeStubPath, resetDb } from "../helpers";
 
 let extId = 0;
 
@@ -121,6 +122,35 @@ describe("trending clustering", () => {
     expect((db.prepare("SELECT COUNT(*) AS n FROM clusters").get() as { n: number }).n).toBe(1);
     expect(runError(run)).toBe("");
     expect(activeClusters()).toHaveLength(0);
+  });
+
+  test("trending auto-draft (default on): at-threshold cluster gets one thread + digest attempt, never re-drafted", async () => {
+    process.env.CONTENT_ENGINE_CLAUDE_BIN = claudeStubPath();
+    addEntry(srcA, "Story", "https://a.com/s", ["story-slug", "entity"]);
+    addEntry(srcB, "Story again", "https://a.com/s", ["story-slug", "entity"]);
+    await trendingPass(newRun());
+
+    const runId = newRun();
+    await autoDraftPass(runId);
+    const threads = db.prepare("SELECT * FROM threads").all() as { cluster_id: number | null; entry_id: number | null }[];
+    expect(threads).toHaveLength(1);
+    expect(threads[0].cluster_id).not.toBeNull();
+    expect(threads[0].entry_id).toBeNull();
+    expect(runError(runId)).toContain("Draft digest send failed");
+
+    // Second pass: the cluster has a thread → skipped, no digest.
+    const run2 = newRun();
+    await autoDraftPass(run2);
+    expect((db.prepare("SELECT COUNT(*) AS n FROM threads").get() as { n: number }).n).toBe(1);
+    expect(runError(run2)).toBe("");
+
+    // Setting off: fresh cluster, no draft.
+    setSetting("auto_draft_trending", "0");
+    addEntry(srcA, "Other story", "https://b.com/x", ["other-story", "entity2"]);
+    addEntry(srcB, "Other story too", "https://b.com/x", ["other-story", "entity2"]);
+    await trendingPass(newRun());
+    await autoDraftPass(newRun());
+    expect((db.prepare("SELECT COUNT(*) AS n FROM threads").get() as { n: number }).n).toBe(1);
   });
 
   test("dismissed clusters stop surfacing and never notify", async () => {

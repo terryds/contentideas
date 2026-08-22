@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 import { Nav } from "./components/Nav";
 import { Inbox } from "./pages/Inbox";
+import { Drafts } from "./pages/Drafts";
 import { Editor } from "./pages/Editor";
 import { Sources } from "./pages/Sources";
 import { Runs } from "./pages/Runs";
@@ -32,6 +33,7 @@ function Shell() {
       {unreachable && <div className="banner-error">Server not responding — is the process running?</div>}
       <Routes>
         <Route path="/" element={<Inbox />} />
+        <Route path="/drafts" element={<Drafts />} />
         <Route path="/item/:id" element={<Editor />} />
         <Route path="/cluster/:id" element={<Editor clusterMode />} />
         <Route path="/sources" element={<Sources />} />

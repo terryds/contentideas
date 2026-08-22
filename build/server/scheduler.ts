@@ -9,6 +9,7 @@ import { filterEntry } from "./llm/filter";
 import { ClaudeUnavailableError } from "./llm/claude";
 import { sendMatchDigest } from "./notify/telegram";
 import { normalizeUrlKey, trendingPass } from "./trending/cluster";
+import { autoDraftPass } from "./drafts";
 
 // New source types register here (plus a type-select option in the Sources UI).
 const fetchers: Partial<Record<SourceRow["type"], Fetcher>> = {
@@ -204,6 +205,7 @@ export async function runOnce(trigger: "cron" | "manual"): Promise<number | null
     await filterPass(runId);
     await notifyPass(runId);
     await trendingPass(runId); // M7 — after individual pings; degrades the run, never fails it
+    await autoDraftPass(runId); // auto-drafts for trending + selected tags; degrades, never fails
     finalizeRun(runId);
   } finally {
     currentRunId = null;

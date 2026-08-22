@@ -112,6 +112,30 @@ export async function sendTrendingDigest(clusters: TrendingDigestCluster[]): Pro
   await send(composeTrendingDigest(clusters), true);
 }
 
+export interface DraftDigestItem {
+  title: string;
+  url: string | null;
+  firstTweet: string;
+}
+
+/** Pure composer — exported for tests. */
+export function composeDraftDigest(items: DraftDigestItem[]): string {
+  const header = `🧵 ${items.length} thread draft${items.length === 1 ? "" : "s"} ready in your dashboard`;
+  const bullets = items.map((item) => {
+    const title = item.url
+      ? `<a href="${escapeAttr(item.url)}">${escapeHtml(item.title)}</a>`
+      : escapeHtml(item.title);
+    const preview = item.firstTweet ? `\n“${escapeHtml(clip(item.firstTweet, 150))}”` : "";
+    return `• <b>${title}</b>${preview}`;
+  });
+  return assemble(header, bullets, "drafts");
+}
+
+export async function sendDraftDigest(items: DraftDigestItem[]): Promise<void> {
+  if (items.length === 0) return;
+  await send(composeDraftDigest(items), true);
+}
+
 export async function sendTest(): Promise<void> {
   await send("Content Engine test — it works", false);
 }

@@ -23,6 +23,8 @@ const SECTION_OF: Record<string, string> = {
   twitter_auth_token: "Twitter CLI",
   twitter_ct0: "Twitter CLI",
   tags: "Tags",
+  auto_draft_trending: "Auto-drafts",
+  auto_draft_tags: "Auto-drafts",
   taste_prompt: "Taste filter prompt",
   generation_prompt: "Thread generation prompt",
   voice_examples_count: "Thread generation prompt",
@@ -219,6 +221,68 @@ export function Settings() {
             onChange={(e) => edit("tags", e.target.value)}
           />
         </Field>
+      </Card>
+
+      <Card style={{ padding: 24, marginBottom: 24 }}>
+        <h2>Auto-drafts</h2>
+        <p className="sec-note">
+          Generate thread drafts automatically at the end of each check. Auto-drafted threads land in the Drafts
+          tab, get announced in a Telegram digest, and can be regenerated/edited like any other draft.
+        </p>
+        <label className="row" style={{ gap: 8, marginBottom: 14, cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            checked={current("auto_draft_trending") !== "0"}
+            onChange={(e) => edit("auto_draft_trending", e.target.checked ? "1" : "0")}
+            style={{ width: "auto" }}
+          />
+          <span>Auto-generate thread drafts from trending stories</span>
+        </label>
+        {(() => {
+          const vocabulary = current("tags")
+            .split(",")
+            .map((t) => t.trim().toLowerCase().replace(/\s+/g, "-"))
+            .filter(Boolean);
+          const selected = new Set(
+            current("auto_draft_tags")
+              .split(",")
+              .map((t) => t.trim().toLowerCase().replace(/\s+/g, "-"))
+              .filter(Boolean),
+          );
+          if (vocabulary.length === 0) {
+            return (
+              <p className="t-small" style={{ margin: 0 }}>
+                Auto-generate from tags: define a tag vocabulary above first.
+              </p>
+            );
+          }
+          const toggle = (tag: string, on: boolean) => {
+            const next = new Set(selected);
+            if (on) next.add(tag);
+            else next.delete(tag);
+            edit("auto_draft_tags", [...next].join(","));
+          };
+          return (
+            <div>
+              <p className="t-small" style={{ margin: "0 0 8px" }}>
+                Auto-generate thread drafts for matches tagged:
+              </p>
+              <div className="row" style={{ gap: "8px 16px" }}>
+                {vocabulary.map((tag) => (
+                  <label key={tag} className="row" style={{ gap: 6, cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={selected.has(tag)}
+                      onChange={(e) => toggle(tag, e.target.checked)}
+                      style={{ width: "auto" }}
+                    />
+                    <span className="src">#{tag}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       </Card>
 
       <Card style={{ padding: 24, marginBottom: 24 }}>

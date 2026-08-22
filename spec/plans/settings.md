@@ -13,6 +13,7 @@ Sections per the [mockup](../../planning/4-mockups/settings.html), all persisted
 - **Telegram:** bot token (secret), chat ID. **Send test message** → real `sendMessage` ("Content Engine test — it works"); inline result: green "✓ Delivered HH:MM" or crimson "✕ <api error>".
 - **Floxy proxy:** host, port, username, password (secret). **Test connection** → fetch a known URL through a fresh proxy session; inline pass/fail with actionable text ("✕ 407 auth failed — check username/password").
 - **Twitter CLI:** `TWITTER_AUTH_TOKEN`, `TWITTER_CT0` (both secret). **Test auth** → twitter-cli whoami-equivalent; success shows "✓ Logged in as @handle".
+- **Auto-drafts** *(added 2026-08-20)*: two options — "Auto-generate thread drafts from trending stories" (checkbox, ON by default) and "Auto-generate thread drafts from tags" (per-tag checkboxes rendered from the vocabulary; selection stored as `auto_draft_tags`). See threads.md.
 - **Tags** *(added 2026-08-20)*: comma-separated vocabulary the filter classifies every entry against (multiple per entry, only from this list). Empty = tagging off.
 - **Taste filter prompt:** multiline textarea; this text is the filter's core instruction (system additionally enforces the MATCH/SKIP output contract — the enforced envelope lives in code, the taste lives here).
 - **Thread generation prompt:** multiline textarea, same split: voice/format wishes here, JSON output contract in code. Plus **voice examples count** select (last 3 / 5 / 10 posted threads).

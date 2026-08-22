@@ -30,6 +30,8 @@ build/
 │   │   ├── claude.ts       # runClaude(prompt, input): claude -p subprocess, timeout, defensive parse, one retry
 │   │   ├── filter.ts       # taste filter: entry → {matched, reason}
 │   │   └── generator.ts    # thread generation: item + prompt + voice examples → string[]
+│   ├── drafts.ts           # v1.2: the ONE place threads are generated — entry/cluster drafting shared by
+│   │                       # the routes and the end-of-run auto-draft pass (trending + selected tags)
 │   ├── trending/
 │   │   └── cluster.ts      # v1.1: URL normalization, topic-overlap clustering, threshold check
 │   ├── notify/
@@ -51,6 +53,7 @@ build/
 │       ├── components/     # Nav, Card, Chip, Button, Field — styleguide components
 │       └── pages/
 │           ├── Inbox.tsx
+│           ├── Drafts.tsx  # v1.2: every thread drafted so far (all/unposted/posted), links into the editor
 │           ├── Editor.tsx
 │           ├── Sources.tsx
 │           ├── Runs.tsx

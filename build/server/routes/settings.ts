@@ -17,6 +17,8 @@ export const PLAIN_KEYS = [
   "floxy_port",
   "floxy_username",
   "tags",
+  "auto_draft_trending",
+  "auto_draft_tags",
   "taste_prompt",
   "generation_prompt",
   "voice_examples_count",
@@ -49,6 +51,8 @@ settings.put("/", async (c) => {
       return c.json({ error: "Voice examples count must be 3, 5, or 10" }, 400);
     if (key === "trending_threshold" && !/^[2-9]$/.test(value))
       return c.json({ error: "Trending threshold must be a number from 2 to 9" }, 400);
+    if (key === "auto_draft_trending" && !["0", "1"].includes(value))
+      return c.json({ error: "auto_draft_trending must be 0 or 1" }, 400);
     if (key === "timezone") {
       const { validTimezone } = await import("../clock");
       if (!value || !validTimezone(value))

@@ -1,68 +1,50 @@
 import { Hono } from "hono";
 import { db, nowIso } from "../db/db";
-import { generateThread, voiceExamples } from "../llm/generator";
+import { voiceExamples } from "../llm/generator";
+import { draftEntryThread, type DraftableEntry } from "../drafts";
 
 const threads = new Hono();
 
+// GET /api/threads — the Drafts tab: every thread ever drafted, newest first,
+// joined with its subject (entry or trending cluster).
+threads.get("/threads", (c) => {
+  const filter = c.req.query("filter") ?? "all";
+  const where =
+    filter === "unposted" ? "WHERE t.posted_at IS NULL" : filter === "posted" ? "WHERE t.posted_at IS NOT NULL" : "";
+  const rows = db
+    .prepare(
+      `SELECT t.id, t.entry_id, t.cluster_id, t.draft_json, t.posted_at, t.updated_at,
+              COALESCE(e.title, cl.title, '(subject removed)') AS subject_title,
+              e.source_label, e.url
+       FROM threads t
+       LEFT JOIN entries e ON e.id = t.entry_id
+       LEFT JOIN clusters cl ON cl.id = t.cluster_id
+       ${where}
+       ORDER BY t.updated_at DESC, t.id DESC LIMIT 200`,
+    )
+    .all();
+  const counts = db
+    .prepare(
+      `SELECT COUNT(*) AS total,
+              COALESCE(SUM(posted_at IS NULL), 0) AS unposted,
+              COALESCE(SUM(posted_at IS NOT NULL), 0) AS posted
+       FROM threads`,
+    )
+    .get();
+  return c.json({ threads: rows, counts });
+});
+
 // POST /api/entries/:id/draft is mounted here (entry-scoped path, thread resource).
 threads.post("/entries/:id/draft", async (c) => {
-  const entryId = c.req.param("id");
-  const entry = db.prepare("SELECT * FROM entries WHERE id = ?").get(entryId) as
-    | {
-        id: number;
-        title: string;
-        url: string | null;
-        content: string | null;
-        transcript: string | null;
-        source_label: string;
-        source_type: string;
-        state: string;
-      }
-    | null;
+  const entry = db.prepare("SELECT * FROM entries WHERE id = ?").get(c.req.param("id")) as DraftableEntry | null;
   if (!entry) return c.json({ error: "Entry not found" }, 404);
-
-  // YouTube: the transcript fetch is retried here when the on-match fetch failed.
-  if (entry.source_type === "youtube" && !entry.transcript) {
-    try {
-      const { fetchTranscriptForEntry } = await import("../fetchers/transcript");
-      const transcript = await fetchTranscriptForEntry(entry as never);
-      if (transcript) {
-        db.prepare("UPDATE entries SET transcript = ? WHERE id = ?").run(transcript, entry.id);
-        entry.transcript = transcript;
-      }
-    } catch (err) {
-      console.error(`[transcript] entry ${entry.id}:`, err);
-      // Generation proceeds on title+content; the editor shows transcript status.
-    }
-  }
-
-  let generated;
   try {
-    generated = await generateThread(entry);
+    const result = await draftEntryThread(entry);
+    const thread = db.prepare("SELECT * FROM threads WHERE id = ?").get(result.threadId);
+    return c.json({ thread, voiceCount: result.voiceCount });
   } catch (err) {
     return c.json({ error: err instanceof Error ? err.message : String(err) }, 502);
   }
-
-  // Replace-or-create AFTER a successful parse — a failed regenerate never
-  // deletes the previous draft.
-  const existing = db.prepare("SELECT id FROM threads WHERE entry_id = ?").get(entry.id) as { id: number } | null;
-  let threadId: number;
-  if (existing) {
-    db.prepare("UPDATE threads SET draft_json = ?, updated_at = ? WHERE id = ?").run(
-      JSON.stringify(generated.tweets), nowIso(), existing.id,
-    );
-    threadId = existing.id;
-  } else {
-    threadId = db
-      .prepare("INSERT INTO threads (entry_id, draft_json, updated_at) VALUES (?, ?, ?)")
-      .run(entry.id, JSON.stringify(generated.tweets), nowIso()).lastInsertRowid as number;
-  }
-  if (entry.state !== "posted") {
-    db.prepare("UPDATE entries SET state = 'drafted' WHERE id = ?").run(entry.id);
-  }
-
-  const thread = db.prepare("SELECT * FROM threads WHERE id = ?").get(threadId);
-  return c.json({ thread, voiceCount: generated.voiceCount });
 });
 
 threads.put("/threads/:id", async (c) => {

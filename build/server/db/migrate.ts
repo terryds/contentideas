@@ -67,6 +67,8 @@ const defaultSettings: Record<string, string> = {
   voice_examples_count: "5",
   trending_threshold: "2",
   tags: "",
+  auto_draft_trending: "1",
+  auto_draft_tags: "",
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
   taste_prompt:
     "You are my content scout. I write threads for indie hackers and AI-curious developers. " +

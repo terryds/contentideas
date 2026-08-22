@@ -19,6 +19,18 @@ The payoff: one click turns a matched item into a Twitter-thread draft in the ow
 - **Mark as posted:** stores current edited text as `final_text`, sets `posted_at`, entry `state=posted`. Caption under the button says exactly this ("saves this final text as a voice example"). Undo-able (open question below).
 - **Empty/error states:** generation failure → inline error card with the `claude -p` error and a Retry button, entry stays `matched`; regenerating never deletes the previous draft until the new one parses successfully.
 
+## Auto-drafts *(added 2026-08-20)*
+
+- Two owner-controlled triggers, both running at the end of each cron run (after filter/notify/trending), generating **ordinary thread rows** — Regenerate/edit/posted work identically to hand-clicked drafts:
+  - **Trending** (`auto_draft_trending`, ON by default): every active at-threshold cluster with no thread yet gets a cluster draft.
+  - **Tags** (`auto_draft_tags`, owner-selected subset of the vocabulary, empty = off): every entry judged *this run* that matched with at least one selected tag and has no thread yet gets an entry draft.
+- Generation logic extracted to `server/drafts.ts` (shared by the routes and the auto pass; includes the YouTube transcript retry). Auto-drafting failures degrade the run (recorded, never fatal); each entry/cluster is attempted once per run, and having a thread makes it permanently skipped.
+- **Draft digest:** one Telegram message per run listing what was auto-drafted — bold title, source/cluster link, first-tweet preview. Informational: a failed send is recorded but NOT retried (the drafts exist; the dashboard shows them).
+
+## Drafts tab *(added 2026-08-20)*
+
+New nav page listing every thread ever drafted: subject title (entry's or cluster's), kind (source label / 📈 trending), first-tweet preview, updated time, Posted chip, filter chips (All / Unposted / Posted), each row linking into the editor (`/item/:id` or `/cluster/:id`). Served by `GET /api/threads` (joined with entries/clusters for titles).
+
 ## Architecture mapping
 
 `server/llm/generator.ts`, `server/fetchers/transcript.ts`, `server/routes/threads.ts`, `web/src/pages/Editor.tsx`.

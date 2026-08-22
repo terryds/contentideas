@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { composeMatchDigest, composeTrendingDigest } from "../../server/notify/telegram";
+import { composeDraftDigest, composeMatchDigest, composeTrendingDigest } from "../../server/notify/telegram";
 
 describe("composeMatchDigest", () => {
   test("one bullet per match: bold headline, source hyperlinked, reason as summary", () => {
@@ -43,6 +43,22 @@ describe("composeMatchDigest", () => {
     expect(digest.match(/• /g)?.length).toBe(20);
     expect(digest).toContain("…and 7 more matches — see your Inbox");
     expect(digest.length).toBeLessThan(4096);
+  });
+});
+
+describe("composeDraftDigest", () => {
+  test("bulleted drafts with linked titles and first-tweet previews", () => {
+    const digest = composeDraftDigest([
+      { title: "Big story", url: "https://a.com/x", firstTweet: "The hook tweet with a number: $41." },
+      { title: "No link one", url: null, firstTweet: "" },
+    ]);
+    expect(digest).toStartWith("🧵 2 thread drafts ready in your dashboard");
+    expect(digest).toContain('• <b><a href="https://a.com/x">Big story</a></b>\n“The hook tweet with a number: $41.”');
+    expect(digest).toContain("• <b>No link one</b>");
+  });
+
+  test("singular header", () => {
+    expect(composeDraftDigest([{ title: "T", url: null, firstTweet: "x" }])).toStartWith("🧵 1 thread draft ready");
   });
 });
 

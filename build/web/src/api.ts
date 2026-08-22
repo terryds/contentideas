@@ -139,6 +139,18 @@ export interface RunSource {
   error_text: string | null;
 }
 
+export interface DraftListItem {
+  id: number;
+  entry_id: number | null;
+  cluster_id: number | null;
+  draft_json: string;
+  posted_at: string | null;
+  updated_at: string;
+  subject_title: string;
+  source_label: string | null;
+  url: string | null;
+}
+
 export interface RunEntry {
   id: number;
   source_label: string;
@@ -181,6 +193,10 @@ export const api = {
     request<{ entry: Entry; thread: Thread | null; voiceCount: number }>(`/api/entries/${id}`),
   draftThread: (entryId: number) =>
     request<{ thread: Thread; voiceCount: number }>(`/api/entries/${entryId}/draft`, { method: "POST" }),
+  listDrafts: (filter: string) =>
+    request<{ threads: DraftListItem[]; counts: { total: number; unposted: number; posted: number } }>(
+      `/api/threads?filter=${encodeURIComponent(filter)}`,
+    ),
   saveThread: (id: number, tweets: string[]) =>
     request<{ ok: true }>(`/api/threads/${id}`, { method: "PUT", body: JSON.stringify({ draft_json: tweets }) }),
   markPosted: (id: number) => request<{ ok: true }>(`/api/threads/${id}/posted`, { method: "POST" }),

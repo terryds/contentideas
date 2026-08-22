@@ -162,6 +162,39 @@ describe("ingestion pipeline", () => {
     ).toBe(400);
   }, 30_000);
 
+  test("auto-drafts from selected tags: threads created, digest attempted, Drafts API lists them", async () => {
+    await addFixtureSource();
+    db.prepare("UPDATE settings SET value = 'stub-tag, other' WHERE key = 'tags'").run();
+    db.prepare("UPDATE settings SET value = 'stub-tag' WHERE key = 'auto_draft_tags'").run();
+
+    const runId = (await runOnce("manual")) as number; // both entries match w/ stub-tag → auto-drafted
+    const threads = db.prepare("SELECT * FROM threads ORDER BY id").all() as { entry_id: number | null; draft_json: string }[];
+    expect(threads).toHaveLength(2);
+    expect(JSON.parse(threads[0].draft_json)[0]).toContain("Stub tweet one");
+    const states = db.prepare("SELECT state FROM entries").all() as { state: string }[];
+    expect(states.every((s) => s.state === "drafted")).toBe(true);
+
+    // Digest attempted (telegram unconfigured → recorded, not retried).
+    const runRow = db.prepare("SELECT error_text FROM runs WHERE id = ?").get(runId) as { error_text: string };
+    expect(runRow.error_text).toContain("Draft digest send failed");
+
+    // Drafts API: list + counts + filters.
+    const list = (await app.request("/api/threads").then((r) => r.json())) as {
+      threads: { subject_title: string; entry_id: number | null }[];
+      counts: { total: number; unposted: number; posted: number };
+    };
+    expect(list.counts).toEqual({ total: 2, unposted: 2, posted: 0 });
+    expect(list.threads[0].subject_title).toBeTruthy();
+    const posted = (await app.request("/api/threads?filter=posted").then((r) => r.json())) as { threads: unknown[] };
+    expect(posted.threads).toHaveLength(0);
+
+    // Next run: nothing new to draft, no digest attempt.
+    const run2 = (await runOnce("manual")) as number;
+    expect((db.prepare("SELECT COUNT(*) AS n FROM threads").get() as { n: number }).n).toBe(2);
+    const run2Row = db.prepare("SELECT error_text FROM runs WHERE id = ?").get(run2) as { error_text: string | null };
+    expect(run2Row.error_text ?? "").not.toContain("Draft digest");
+  }, 30_000);
+
   test("clock-mode source is due exactly when a scheduled time has passed since its last fetch", async () => {
     const res = await app.request("/api/sources", {
       method: "POST",
