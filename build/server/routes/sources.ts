@@ -146,6 +146,18 @@ sources.put("/:id", async (c) => {
   return c.json({ ok: true });
 });
 
+// Per-source manual run (v1.2): full pipeline, scoped to one source.
+sources.post("/:id/run", async (c) => {
+  const source = db.prepare("SELECT * FROM sources WHERE id = ?").get(c.req.param("id")) as SourceRow | null;
+  if (!source) return c.json({ error: "Source not found" }, 404);
+  if (!source.active) return c.json({ error: "Source is paused — resume it first" }, 400);
+  const { runOnce, runningRunId } = await import("../scheduler");
+  if (runningRunId() !== null) return c.json({ runId: runningRunId(), alreadyRunning: true });
+  // runOnce inserts the run row synchronously before its first await.
+  runOnce("manual", source.id).catch((err) => console.error("[run] per-source run crashed:", err));
+  return c.json({ runId: runningRunId(), alreadyRunning: false });
+});
+
 function setActive(id: string, active: number): boolean {
   return db.prepare("UPDATE sources SET active = ? WHERE id = ?").run(active, id).changes > 0;
 }

@@ -169,16 +169,22 @@ function insertEntries(source: SourceRow, entries: NewEntry[], runId: number): n
   return newCount;
 }
 
-export async function runOnce(trigger: "cron" | "manual"): Promise<number | null> {
+export async function runOnce(trigger: "cron" | "manual", onlySourceId?: number): Promise<number | null> {
   if (currentRunId !== null) {
     console.log(`[run] run #${currentRunId} already in progress — skipping ${trigger} trigger`);
     return null;
   }
 
   const all = db.prepare("SELECT * FROM sources WHERE active = 1 ORDER BY id").all() as SourceRow[];
-  // Cron ticks fetch only due sources; "Run now" fetches everything.
-  const sources = trigger === "cron" ? all.filter((s) => isDue(s, Date.now())) : all;
-  if (sources.length === 0 && trigger === "cron") return null; // quiet tick, no run row
+  // Cron ticks fetch only due sources; "Run now" fetches everything; a
+  // per-source run (Sources page) fetches just that one.
+  const sources =
+    onlySourceId != null
+      ? all.filter((s) => s.id === onlySourceId)
+      : trigger === "cron"
+        ? all.filter((s) => isDue(s, Date.now()))
+        : all;
+  if (sources.length === 0 && (trigger === "cron" || onlySourceId != null)) return null; // nothing to do, no run row
 
   const runId = db
     .prepare("INSERT INTO runs (trigger, started_at) VALUES (?, ?)")

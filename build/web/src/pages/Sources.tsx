@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api, formatTime, TYPE_BADGES } from "../api";
 import type { Source, SourceType } from "../api";
 import { Button } from "../components/Button";
@@ -90,6 +90,7 @@ function CadenceEditor({
 }
 
 export function Sources() {
+  const navigate = useNavigate();
   const [sources, setSources] = useState<Source[]>([]);
   const [type, setType] = useState<SourceType>("youtube");
   const [input, setInput] = useState("");
@@ -132,6 +133,21 @@ export function Sources() {
     try {
       await api.updateSource(id, cadence);
       await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const runOne = async (source: Source) => {
+    setError(null);
+    try {
+      const res = await api.runSource(source.id);
+      if (res.alreadyRunning) {
+        setError("A run is already in progress — see the Runs page.");
+        return;
+      }
+      // Watch it live.
+      navigate(res.runId != null ? `/runs?open=${res.runId}` : "/runs");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -282,6 +298,11 @@ export function Sources() {
                     <td className="num">{source.active ? source.matched_7d : "—"}</td>
                     <td>{healthCell(source)}</td>
                     <td style={{ whiteSpace: "nowrap" }}>
+                      {source.active && (
+                        <Button variant="ghost" onClick={() => runOne(source)}>
+                          ▶ Run
+                        </Button>
+                      )}
                       {source.active ? (
                         <Button variant="ghost" onClick={() => api.pauseSource(source.id).then(load)}>
                           Pause

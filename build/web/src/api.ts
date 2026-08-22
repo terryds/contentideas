@@ -181,6 +181,8 @@ export const api = {
   pauseSource: (id: number) => request<{ ok: true }>(`/api/sources/${id}/pause`, { method: "POST" }),
   resumeSource: (id: number) => request<{ ok: true }>(`/api/sources/${id}/resume`, { method: "POST" }),
   removeSource: (id: number) => request<{ ok: true }>(`/api/sources/${id}`, { method: "DELETE" }),
+  runSource: (id: number) =>
+    request<{ runId: number | null; alreadyRunning: boolean }>(`/api/sources/${id}/run`, { method: "POST" }),
 
   listEntries: (filter: string) =>
     request<{

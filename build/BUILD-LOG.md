@@ -181,3 +181,9 @@ Also: **Settings → Danger zone → "Clear history data"** (spec'd in plans/set
 **Owner's rework (spec first — plans/trending.md, threads.md, settings.md):** trending is no longer a step inside every fetch run — it's a **daily job on its own clock**: `trending_run_times` (HH:MM list, default 09:00, global timezone; Settings → Trending). The master minute-tick fires it when a scheduled occurrence has passed since the last job (missed slots fire once at boot; stamped at start so long jobs can't re-fire). Each firing records itself in run history as **trigger='trending'** (migration 9 rebuilds the runs CHECK; Runs page shows a 📈 chip and a "📈 Trending now" manual button next to Run now). The job: cluster the 48h window's unclustered entries → trending digest → rank cluster candidates → auto-draft the best (same max_auto_drafts cap, own ranking call). Fetch runs now auto-draft **tag candidates only**. Accepted trade, by design: a story crossing the threshold mid-day waits for the next scheduled trending run — batch rhythm over immediacy.
 
 **Verified:** suite 83/83 — trending job test (due-by-schedule semantics, trigger='trending' run row, clustering + both digest attempts + cluster draft in one job, stamps itself not-due), fetch runs assert zero clustering, tag auto-drafts unchanged. tsc + vite clean.
+
+## Per-source Run now (2026-08-20)
+
+**Built (spec first — plans/sources.md):** each active source row on the Sources page has a ▶ Run button — `POST /api/sources/:id/run` fires `runOnce("manual", sourceId)`, a normal run scoped to exactly that source (full pipeline: fetch → filter → match digest → tag auto-drafts), and the UI jumps to `/runs?open=<id>` to watch it live. Refused while another run is in progress; paused → 400, unknown → 404.
+
+**Verified:** suite 84/84 — integration proves a two-source setup runs only the requested source (single run_sources row), entries land, paused/unknown refused. tsc + vite clean.

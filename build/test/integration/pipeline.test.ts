@@ -280,6 +280,37 @@ describe("ingestion pipeline", () => {
     }
   }, 30_000);
 
+  test("per-source Run now fetches exactly that source through the full pipeline", async () => {
+    const idA = await addFixtureSource();
+    const second = serveFixture(rssDoc([{ guid: "b1", title: "Other feed post", link: "https://other.example/b1" }]));
+    const res = await app.request("/api/sources", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ type: "rss", input: second.url }),
+    });
+    expect(res.status).toBe(201);
+
+    const trigger = await app.request(`/api/sources/${idA}/run`, { method: "POST" });
+    expect(trigger.status).toBe(200);
+    const { runId, alreadyRunning } = (await trigger.json()) as { runId: number; alreadyRunning: boolean };
+    expect(alreadyRunning).toBe(false);
+    // The run row exists immediately; wait for it to finish.
+    for (let i = 0; i < 100; i++) {
+      const row = db.prepare("SELECT finished_at FROM runs WHERE id = ?").get(runId) as { finished_at: string | null };
+      if (row.finished_at) break;
+      await Bun.sleep(100);
+    }
+    const perSource = db.prepare("SELECT source_id FROM run_sources WHERE run_id = ?").all(runId) as { source_id: number }[];
+    expect(perSource).toEqual([{ source_id: idA }]); // only the requested source
+    expect((db.prepare("SELECT COUNT(*) AS n FROM entries WHERE source_id = ?").get(idA) as { n: number }).n).toBe(2);
+
+    // Paused and unknown sources are refused.
+    await app.request(`/api/sources/${idA}/pause`, { method: "POST" });
+    expect((await app.request(`/api/sources/${idA}/run`, { method: "POST" })).status).toBe(400);
+    expect((await app.request("/api/sources/999/run", { method: "POST" })).status).toBe(404);
+    second.stop();
+  }, 30_000);
+
   test("a failing source retries with a trace and never blocks the healthy one", async () => {
     await addFixtureSource();
     // A source that died AFTER being added (add-time validation would refuse a
