@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { api, formatClock, formatTime } from "../api";
+import { api, formatClock, formatTime, parseTags } from "../api";
 import type { Cluster, Entry, Run, SourceType } from "../api";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
@@ -108,6 +108,15 @@ function EntryCard({
           </>
         )}
       </div>
+      {parseTags(entry.tags).length > 0 && (
+        <div className="row" style={{ gap: 6, marginTop: 8 }}>
+          {parseTags(entry.tags).map((tag) => (
+            <Chip key={tag} tone="neutral">
+              #{tag}
+            </Chip>
+          ))}
+        </div>
+      )}
       {entry.filter_reason && !posted && (
         <div style={{ margin: "10px 0 16px", maxWidth: "65ch" }}>
           <span className="sec-lbl" style={{ marginBottom: 0 }}>
@@ -153,6 +162,7 @@ export function Inbox() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [clusters, setClusters] = useState<Cluster[]>([]);
   const [counts, setCounts] = useState<Partial<Record<SourceType, number>>>({});
+  const [tagCounts, setTagCounts] = useState<{ tag: string; n: number }[]>([]);
   const [lastRun, setLastRun] = useState<Run | null>(null);
   const [nextAt, setNextAt] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
@@ -164,6 +174,7 @@ export function Inbox() {
       setEntries(data.entries);
       setClusters(data.clusters ?? []);
       setCounts(Object.fromEntries(data.counts.map((c) => [c.source_type, c.n])));
+      setTagCounts(data.tagCounts ?? []);
       setLastRun(data.lastRun);
       setNextAt(data.nextAt);
     } catch {
@@ -244,6 +255,23 @@ export function Inbox() {
             </span>
           );
         })}
+        {tagCounts.map(({ tag, n }) => (
+          <span
+            key={`tag:${tag}`}
+            className="chip chip-neutral"
+            role="button"
+            tabIndex={0}
+            onClick={() => setFilter(`tag:${tag}`)}
+            onKeyDown={(e) => e.key === "Enter" && setFilter(`tag:${tag}`)}
+            style={
+              filter === `tag:${tag}`
+                ? { background: "var(--ink)", color: "var(--paper)", cursor: "pointer" }
+                : { cursor: "pointer" }
+            }
+          >
+            #{tag} · {n}
+          </span>
+        ))}
       </div>
 
       {filter === "all" && clusters.length > 0 && (

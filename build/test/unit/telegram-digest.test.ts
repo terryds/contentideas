@@ -12,6 +12,13 @@ describe("composeMatchDigest", () => {
     expect(digest).toContain("• <b>Other</b> — rss:swyx.io"); // no url → plain label, no reason line
   });
 
+  test("tags render as Telegram-safe hashtags", () => {
+    const digest = composeMatchDigest([
+      { title: "T", source_label: "s", filter_reason: "fits", url: null, tags: ["ai-coding", "indie-hacking"] },
+    ]);
+    expect(digest).toContain("#ai_coding #indie_hacking");
+  });
+
   test("singular header for one match", () => {
     expect(composeMatchDigest([{ title: "T", source_label: "s", filter_reason: null, url: null }])).toStartWith(
       "🔎 1 new match\n",

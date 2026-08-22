@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { api, formatClock, formatDuration, formatTime } from "../api";
+import { api, formatClock, formatDuration, formatTime, parseTags } from "../api";
 import type { Run, RunEntry, RunSource } from "../api";
 import { Button } from "../components/Button";
 import { Chip } from "../components/Chip";
@@ -41,6 +41,11 @@ function EntryRow({ entry }: { entry: RunEntry }) {
         ) : (
           <span style={{ fontWeight: 600 }}>{entry.title}</span>
         )}
+        {parseTags(entry.tags).map((tag) => (
+          <Chip key={tag} tone="neutral">
+            #{tag}
+          </Chip>
+        ))}
       </div>
       {entry.filter_status === "pending" ? (
         <div className="t-small" style={{ marginTop: 4 }}>

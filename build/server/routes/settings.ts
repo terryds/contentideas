@@ -16,6 +16,7 @@ export const PLAIN_KEYS = [
   "floxy_host",
   "floxy_port",
   "floxy_username",
+  "tags",
   "taste_prompt",
   "generation_prompt",
   "voice_examples_count",

@@ -65,6 +65,17 @@ export interface Entry {
   filtered_at: string | null;
   state: "new" | "notified" | "drafted" | "posted" | "dismissed";
   created_at: string;
+  tags: string | null; // JSON array of vocabulary tags
+}
+
+export function parseTags(tags: string | null | undefined): string[] {
+  if (!tags) return [];
+  try {
+    const parsed = JSON.parse(tags);
+    return Array.isArray(parsed) ? parsed.filter((t) => typeof t === "string") : [];
+  } catch {
+    return [];
+  }
 }
 
 export interface Thread {
@@ -136,6 +147,7 @@ export interface RunEntry {
   filter_status: "pending" | "matched" | "skipped";
   filter_reason: string | null;
   state: Entry["state"];
+  tags: string | null;
 }
 
 export interface SettingsPayload {
@@ -160,6 +172,7 @@ export const api = {
     request<{
       entries: Entry[];
       counts: { source_type: SourceType; n: number }[];
+      tagCounts: { tag: string; n: number }[];
       lastRun: Run | null;
       nextAt: string | null;
       clusters: Cluster[];

@@ -17,6 +17,10 @@ entries.get("/", (c) => {
   } else if (["youtube", "twitter", "hn", "rss"].includes(filter)) {
     where = "filter_status = 'matched' AND state != 'dismissed' AND source_type = ?";
     params.push(filter);
+  } else if (filter.startsWith("tag:")) {
+    where =
+      "filter_status = 'matched' AND state != 'dismissed' AND EXISTS (SELECT 1 FROM json_each(COALESCE(entries.tags, '[]')) WHERE json_each.value = ?)";
+    params.push(filter.slice(4));
   }
 
   const rows = db
@@ -30,6 +34,15 @@ entries.get("/", (c) => {
     )
     .all() as { source_type: string; n: number }[];
 
+  const tagCounts = db
+    .prepare(
+      `SELECT je.value AS tag, COUNT(*) AS n
+       FROM entries e, json_each(COALESCE(e.tags, '[]')) je
+       WHERE e.filter_status = 'matched' AND e.state != 'dismissed'
+       GROUP BY je.value ORDER BY n DESC, tag`,
+    )
+    .all() as { tag: string; n: number }[];
+
   const lastRun = db
     .prepare(
       `SELECT r.*, (SELECT COUNT(*) FROM run_sources rs WHERE rs.run_id = r.id) AS sources_count,
@@ -39,7 +52,7 @@ entries.get("/", (c) => {
     .get();
 
   // M7: trending clusters ride on the inbox payload (shown on the "all" view).
-  return c.json({ entries: rows, counts, lastRun, nextAt: nextRunAt(), clusters: activeClusters() });
+  return c.json({ entries: rows, counts, tagCounts, lastRun, nextAt: nextRunAt(), clusters: activeClusters() });
 });
 
 entries.get("/:id", (c) => {

@@ -59,11 +59,14 @@ const migrations: string[] = [
   // 6 — clock-mode schedules: explicit times of day ("07:00,19:00"), interpreted
   // in the owner's timezone (settings key "timezone"). Null = interval mode.
   "ALTER TABLE sources ADD COLUMN schedule_times TEXT",
+  // 7 — tags: JSON array of vocabulary tags the filter assigned (settings key "tags").
+  "ALTER TABLE entries ADD COLUMN tags TEXT",
 ];
 
 const defaultSettings: Record<string, string> = {
   voice_examples_count: "5",
   trending_threshold: "2",
+  tags: "",
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
   taste_prompt:
     "You are my content scout. I write threads for indie hackers and AI-curious developers. " +

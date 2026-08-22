@@ -63,6 +63,7 @@ export interface MatchDigestEntry {
   source_label: string;
   filter_reason: string | null;
   url: string | null;
+  tags?: string[] | null;
 }
 
 /** Pure composer — exported for tests. */
@@ -73,7 +74,11 @@ export function composeMatchDigest(entries: MatchDigestEntry[]): string {
       ? `<a href="${escapeAttr(entry.url)}">${escapeHtml(entry.source_label)}</a>`
       : escapeHtml(entry.source_label);
     const reason = entry.filter_reason ? `\n${escapeHtml(clip(entry.filter_reason, MAX_REASON))}` : "";
-    return `• <b>${escapeHtml(entry.title)}</b> — ${source}${reason}`;
+    // Telegram hashtags only link word characters — hyphens become underscores.
+    const tags = entry.tags?.length
+      ? `\n${entry.tags.map((tag) => `#${tag.replace(/[^a-z0-9]+/gi, "_")}`).join(" ")}`
+      : "";
+    return `• <b>${escapeHtml(entry.title)}</b> — ${source}${reason}${tags}`;
   });
   return assemble(header, bullets, "matches");
 }

@@ -247,8 +247,11 @@ async function filterPass(runId: number): Promise<void> {
       const verdict = await filterEntry(entry);
       errorStreak = 0;
       db.prepare(
-        "UPDATE entries SET filter_status = ?, filter_reason = ?, filtered_at = ?, filtered_run_id = ?, topics = ? WHERE id = ?",
-      ).run(verdict.matched ? "matched" : "skipped", verdict.reason, nowIso(), runId, JSON.stringify(verdict.topics), entry.id);
+        "UPDATE entries SET filter_status = ?, filter_reason = ?, filtered_at = ?, filtered_run_id = ?, topics = ?, tags = ? WHERE id = ?",
+      ).run(
+        verdict.matched ? "matched" : "skipped", verdict.reason, nowIso(), runId,
+        JSON.stringify(verdict.topics), JSON.stringify(verdict.tags), entry.id,
+      );
       if (verdict.matched) {
         // Attribute the match to this run's row for the entry's source (may be
         // absent if the source was since paused/removed — that's fine).
@@ -306,10 +309,14 @@ async function filterPass(runId: number): Promise<void> {
 async function notifyPass(runId: number): Promise<void> {
   const matches = db
     .prepare("SELECT * FROM entries WHERE filter_status = 'matched' AND state = 'new' ORDER BY id")
-    .all() as { id: number; title: string; source_label: string; filter_reason: string | null; url: string | null }[];
+    .all() as {
+    id: number; title: string; source_label: string; filter_reason: string | null; url: string | null; tags: string | null;
+  }[];
   if (matches.length === 0) return;
   try {
-    await sendMatchDigest(matches);
+    await sendMatchDigest(
+      matches.map((entry) => ({ ...entry, tags: entry.tags ? (JSON.parse(entry.tags) as string[]) : [] })),
+    );
     const mark = db.prepare("UPDATE entries SET state = 'notified' WHERE id = ? AND state = 'new'");
     db.transaction(() => {
       for (const entry of matches) mark.run(entry.id);

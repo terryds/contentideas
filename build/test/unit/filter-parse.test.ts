@@ -36,4 +36,17 @@ describe("parseVerdict", () => {
   test("throws when no MATCH/SKIP verdict is present", () => {
     expect(() => parseVerdict("I think this is interesting content")).toThrow(/no MATCH\/SKIP verdict/);
   });
+
+  test("TAGS are kept only when in the vocabulary", () => {
+    const output = "MATCH: ok\nTOPICS: a-b, c-d\nTAGS: ai-coding, invented-tag, Indie Hacking";
+    const v = parseVerdict(output, ["ai-coding", "indie-hacking"]);
+    expect(v.tags).toEqual(["ai-coding", "indie-hacking"]); // normalized, invented dropped
+    // empty vocabulary → tagging off, everything dropped
+    expect(parseVerdict(output).tags).toEqual([]);
+  });
+
+  test("missing TAGS line never fails the verdict", () => {
+    const v = parseVerdict("MATCH: fine\nTOPICS: a-b, c-d", ["ai-coding"]);
+    expect(v.tags).toEqual([]);
+  });
 });

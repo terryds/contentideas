@@ -25,7 +25,7 @@ runs.get("/:id", (c) => {
   // Answers "why didn't X reach my Telegram?" with the filter's own reasoning.
   const entries = db
     .prepare(
-      `SELECT id, source_label, title, url, filter_status, filter_reason, state
+      `SELECT id, source_label, title, url, filter_status, filter_reason, state, tags
        FROM entries
        WHERE filtered_run_id = ?1 OR (created_run_id = ?1 AND filter_status = 'pending')
        ORDER BY CASE filter_status WHEN 'matched' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END, id`,

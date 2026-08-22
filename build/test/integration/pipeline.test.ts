@@ -53,7 +53,8 @@ describe("ingestion pipeline", () => {
       expect(entry.filter_reason).toBe("stub filter says this fits");
     }
 
-    // The feed gains a post.
+    // The feed gains a post; the owner has a tag vocabulary configured.
+    db.prepare("UPDATE settings SET value = 'stub-tag, unused-tag' WHERE key = 'tags'").run();
     feed.setBody(rssDoc([...ITEMS, NEW_ITEM]));
     const run2 = (await runOnce("manual")) as number;
 
@@ -62,7 +63,20 @@ describe("ingestion pipeline", () => {
     expect(fresh.filter_status).toBe("matched");
     expect(fresh.filter_reason).toBe("stub filter says this fits");
     expect(JSON.parse(fresh.topics as string)).toEqual(["stub-story", "stub-entity"]);
+    // vocabulary tag kept, the stub's invented tag discarded
+    expect(JSON.parse(fresh.tags as string)).toEqual(["stub-tag"]);
     expect(fresh.url_key).toBe("fixture.example/p3"); // tracking param stripped at ingestion
+
+    // Tag filter + tag counts flow through the inbox API.
+    const tagged = (await app.request("/api/entries?filter=tag:stub-tag").then((r) => r.json())) as {
+      entries: unknown[]; tagCounts: { tag: string; n: number }[];
+    };
+    expect(tagged.entries).toHaveLength(1);
+    expect(tagged.tagCounts).toEqual([{ tag: "stub-tag", n: 1 }]);
+    const untagged = (await app.request("/api/entries?filter=tag:unused-tag").then((r) => r.json())) as {
+      entries: unknown[];
+    };
+    expect(untagged.entries).toHaveLength(0);
 
     // Run accounting: 1 new, 1 matched, source row ok on attempt 1.
     const runRow = db.prepare("SELECT * FROM runs WHERE id = ?").get(run2) as Record<string, unknown>;

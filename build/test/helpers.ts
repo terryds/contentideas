@@ -27,7 +27,7 @@ input=$(cat)
 if printf '%s' "$input" | grep -q "Return ONLY a JSON array"; then
   echo '["Stub tweet one about the story.","Stub tweet two with a detail.","Stub tweet three, the takeaway."]'
 else
-  printf 'MATCH: stub filter says this fits\\nTOPICS: stub-story, stub-entity\\n'
+  printf 'MATCH: stub filter says this fits\\nTOPICS: stub-story, stub-entity\\nTAGS: stub-tag, invented-tag\\n'
 fi
 `,
   );

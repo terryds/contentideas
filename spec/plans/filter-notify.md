@@ -6,6 +6,7 @@ The judgment layer: every ingested entry is judged by the owner's taste prompt v
 
 ## Behavior
 
+- **Tags** *(added 2026-08-20)*: the owner defines a tag vocabulary in Settings (comma-separated, e.g. `ai-coding, indie-hacking, launches`). When non-empty, the filter's output contract gains a third line — `TAGS: <zero or more, strictly from the vocabulary>` — so every entry (matched AND skipped) is classified in the same `claude -p` call, no extra cost. Tags outside the vocabulary are discarded on parse; empty vocabulary disables the line entirely. Tags show as chips on Inbox cards and in per-run entry detail; the Inbox filter row gains one chip per tag (with counts) that filters matched entries by tag; digest bullets append the tags as Telegram hashtags (`#ai_coding` — hyphens become underscores so Telegram links them).
 - **Filter pass** (runs inside `runOnce()` after fetching): for each `filter_status=pending` entry — including leftovers from previous runs — call `llm/filter.ts`:
   - Input: taste prompt (settings) + entry title, source, content. Output contract demanded from the model: verdict `MATCH`/`SKIP` + one line of reason.
   - Result stored on the entry (`matched`/`skipped`, reason, filtered_at). Unparseable output → one retry → still bad → entry stays `pending` (picked up next run). `claude -p` call timeout ~60s.

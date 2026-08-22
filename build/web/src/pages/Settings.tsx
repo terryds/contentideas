@@ -22,6 +22,7 @@ const SECTION_OF: Record<string, string> = {
   floxy_password: "Floxy proxy",
   twitter_auth_token: "Twitter CLI",
   twitter_ct0: "Twitter CLI",
+  tags: "Tags",
   taste_prompt: "Taste filter prompt",
   generation_prompt: "Thread generation prompt",
   voice_examples_count: "Thread generation prompt",
@@ -202,6 +203,22 @@ export function Settings() {
           </Button>
           {testNote("twitter")}
         </div>
+      </Card>
+
+      <Card style={{ padding: 24, marginBottom: 24 }}>
+        <h2>Tags</h2>
+        <p className="sec-note">
+          Comma-separated vocabulary the filter classifies every entry against (multiple tags per entry, strictly
+          from this list — rides on the same claude call, no extra cost). Empty = tagging off.
+        </p>
+        <Field label="Tags" style={{ maxWidth: "none" }}>
+          <input
+            type="text"
+            placeholder="ai-coding, indie-hacking, launches, drama"
+            value={current("tags")}
+            onChange={(e) => edit("tags", e.target.value)}
+          />
+        </Field>
       </Card>
 
       <Card style={{ padding: 24, marginBottom: 24 }}>
