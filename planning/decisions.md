@@ -43,3 +43,4 @@ One line per decision + why. Append-only.
 - [v1.2] filter judgments 3-concurrent (was serial) — full judgment of first fetches made serial runtime unacceptable; abort semantics preserved
 - [v1.2] clock-mode schedules: per-source "at set times" (HH:MM list) in ONE global timezone setting — per-source timezones rejected as overkill; missed slots fire exactly once at boot, never queue
 - [v1.2] tags ride the existing filter call (third contract line, vocabulary-constrained, sanitized on parse) — classification costs zero extra claude calls; model can never invent labels
+- [v1.2] LLM seam migrated to claude -p --json-schema structured outputs — schema-enforced shapes (tag vocabulary as enum) replace regex line contracts; doctor verifies --json-schema support at onboarding

@@ -1,5 +1,5 @@
 import { db, getSetting } from "../db/db";
-import { runClaude } from "./claude";
+import { runClaudeStructured } from "./claude";
 
 // Transcript truncation: keep the beginning plus a middle sample (~15k words
 // total — the claude CLI context is large; threshold picked per spec's open
@@ -27,19 +27,25 @@ export function voiceExamples(): string[] {
   return rows.map((r) => r.final_text);
 }
 
-export function parseThread(output: string): string[] {
-  // Models love code fences; strip them before parsing.
-  const cleaned = output.replace(/^```(?:json)?\s*/im, "").replace(/```\s*$/m, "").trim();
-  const start = cleaned.indexOf("[");
-  const end = cleaned.lastIndexOf("]");
-  if (start === -1 || end === -1 || end <= start) {
-    throw new Error(`Generator output was not a JSON array: "${output.slice(0, 120)}"`);
-  }
-  const parsed = JSON.parse(cleaned.slice(start, end + 1));
-  if (!Array.isArray(parsed) || parsed.length === 0 || !parsed.every((t) => typeof t === "string" && t.trim())) {
-    throw new Error("Generator returned an empty or non-string array");
-  }
-  return (parsed as string[]).map((t) => t.trim()).slice(0, 10);
+// Thread shape enforced by the CLI (claude -p --json-schema) — no text parsing.
+const THREAD_SCHEMA = {
+  type: "object",
+  properties: {
+    tweets: { type: "array", items: { type: "string", minLength: 1 }, minItems: 1, maxItems: 10 },
+  },
+  required: ["tweets"],
+} as const;
+
+/** Normalize a schema-validated tweets array. Pure — exported for tests. */
+export function normalizeTweets(raw: unknown): string[] {
+  const list = Array.isArray(raw) ? raw : [];
+  const tweets = list
+    .filter((t): t is string => typeof t === "string")
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .slice(0, 10);
+  if (tweets.length === 0) throw new Error("Generator returned no usable tweets");
+  return tweets;
 }
 
 export interface GeneratedThread {
@@ -90,9 +96,8 @@ export function composeGenerationPrompt(entry: GenerationInput): { prompt: strin
 
   sections.push(
     "",
-    "## Output format",
-    "Return ONLY a JSON array of tweet strings — 3 to 6 tweets, one string per tweet.",
-    'Example shape: ["first tweet", "second tweet", "third tweet"]',
+    "## Output (structured)",
+    "tweets: 3 to 6 strings, one per tweet, in thread order.",
     "No markdown, no commentary, no numbering inside the tweets.",
   );
 
@@ -101,8 +106,8 @@ export function composeGenerationPrompt(entry: GenerationInput): { prompt: strin
 
 export async function generateThread(entry: GenerationInput): Promise<GeneratedThread> {
   const { prompt, voiceCount } = composeGenerationPrompt(entry);
-  const tweets = await runClaude(prompt, parseThread, { timeoutMs: 120_000 });
-  return { tweets, voiceCount };
+  const raw = await runClaudeStructured<{ tweets?: unknown }>(prompt, THREAD_SCHEMA, { timeoutMs: 120_000 });
+  return { tweets: normalizeTweets(raw.tweets), voiceCount };
 }
 
 /* ---------- M7: draft from a whole trending cluster ---------- */
@@ -150,9 +155,8 @@ export function composeClusterGenerationPrompt(members: GenerationInput[]): { pr
 
   sections.push(
     "",
-    "## Output format",
-    "Return ONLY a JSON array of tweet strings — 3 to 6 tweets, one string per tweet.",
-    'Example shape: ["first tweet", "second tweet", "third tweet"]',
+    "## Output (structured)",
+    "tweets: 3 to 6 strings, one per tweet, in thread order.",
     "No markdown, no commentary, no numbering inside the tweets.",
   );
 
@@ -161,6 +165,6 @@ export function composeClusterGenerationPrompt(members: GenerationInput[]): { pr
 
 export async function generateClusterThread(members: GenerationInput[]): Promise<GeneratedThread> {
   const { prompt, voiceCount } = composeClusterGenerationPrompt(members);
-  const tweets = await runClaude(prompt, parseThread, { timeoutMs: 120_000 });
-  return { tweets, voiceCount };
+  const raw = await runClaudeStructured<{ tweets?: unknown }>(prompt, THREAD_SCHEMA, { timeoutMs: 120_000 });
+  return { tweets: normalizeTweets(raw.tweets), voiceCount };
 }

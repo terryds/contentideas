@@ -1,31 +1,22 @@
 import { describe, expect, test } from "bun:test";
-import { parseThread, truncateTranscript } from "../../server/llm/generator";
+import { normalizeTweets, truncateTranscript } from "../../server/llm/generator";
 
-describe("parseThread", () => {
-  test("plain JSON array", () => {
-    expect(parseThread('["one", "two", "three"]')).toEqual(["one", "two", "three"]);
+describe("normalizeTweets (schema-validated structured output)", () => {
+  test("passes through a clean array", () => {
+    expect(normalizeTweets(["one", "two", "three"])).toEqual(["one", "two", "three"]);
   });
 
-  test("strips code fences", () => {
-    expect(parseThread('```json\n["a", "b"]\n```')).toEqual(["a", "b"]);
+  test("trims, drops empties/non-strings, caps at 10", () => {
+    const twelve = Array.from({ length: 12 }, (_, i) => `  tweet ${i} `);
+    const normalized = normalizeTweets([...twelve, "   ", 42]);
+    expect(normalized).toHaveLength(10);
+    expect(normalized[0]).toBe("tweet 0");
   });
 
-  test("extracts the array out of surrounding commentary", () => {
-    expect(parseThread('Here is your thread:\n["a", "b"]\nHope you like it!')).toEqual(["a", "b"]);
-  });
-
-  test("trims tweets and caps at 10", () => {
-    const twelve = JSON.stringify(Array.from({ length: 12 }, (_, i) => `  tweet ${i} `));
-    const parsed = parseThread(twelve);
-    expect(parsed).toHaveLength(10);
-    expect(parsed[0]).toBe("tweet 0");
-  });
-
-  test("throws on empty array, non-array, non-string members", () => {
-    expect(() => parseThread("[]")).toThrow();
-    expect(() => parseThread("no array here")).toThrow(/not a JSON array/);
-    expect(() => parseThread('["ok", 42]')).toThrow();
-    expect(() => parseThread('["ok", "   "]')).toThrow();
+  test("throws when nothing usable remains", () => {
+    expect(() => normalizeTweets([])).toThrow(/no usable tweets/);
+    expect(() => normalizeTweets(["   ", 42])).toThrow(/no usable tweets/);
+    expect(() => normalizeTweets("not an array")).toThrow(/no usable tweets/);
   });
 });
 

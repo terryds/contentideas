@@ -14,9 +14,11 @@ export function resetDb(): void {
 }
 
 /**
- * Deterministic stand-in for the claude CLI. Sniffs which contract the prompt
- * asks for (generator wants a JSON array, filter wants MATCH/SKIP + TOPICS)
- * and answers accordingly. Point CONTENT_ENGINE_CLAUDE_BIN at the returned path.
+ * Deterministic stand-in for the claude CLI's structured-output mode: emits the
+ * `--output-format json` envelope with a `structured_output` matching whichever
+ * contract the prompt asks for (generator prompts start "You write Twitter
+ * threads"; everything else gets a filter verdict). Point
+ * CONTENT_ENGINE_CLAUDE_BIN at the returned path.
  */
 export function claudeStubPath(): string {
   const path = join(process.env.CONTENT_ENGINE_DATA_DIR!, "claude-stub.sh");
@@ -24,10 +26,10 @@ export function claudeStubPath(): string {
     path,
     `#!/bin/sh
 input=$(cat)
-if printf '%s' "$input" | grep -q "Return ONLY a JSON array"; then
-  echo '["Stub tweet one about the story.","Stub tweet two with a detail.","Stub tweet three, the takeaway."]'
+if printf '%s' "$input" | grep -q "You write Twitter threads"; then
+  echo '{"is_error":false,"subtype":"success","structured_output":{"tweets":["Stub tweet one about the story.","Stub tweet two with a detail.","Stub tweet three, the takeaway."]}}'
 else
-  printf 'MATCH: stub filter says this fits\\nTOPICS: stub-story, stub-entity\\nTAGS: stub-tag, invented-tag\\n'
+  echo '{"is_error":false,"subtype":"success","structured_output":{"matched":true,"reason":"stub filter says this fits","topics":["stub-story","stub-entity"],"tags":["stub-tag","invented-tag"]}}'
 fi
 `,
   );

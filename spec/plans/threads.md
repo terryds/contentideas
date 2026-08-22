@@ -10,7 +10,7 @@ The payoff: one click turns a matched item into a Twitter-thread draft in the ow
   1. Generation prompt (settings).
   2. Voice examples: `final_text` of the last N posted threads (N from settings; skip section entirely when pool is empty).
   3. Item material: title + URL + content; **for YouTube, the transcript** (fetch now if missing — this is the retry path when the on-match fetch failed; truncate very long transcripts to fit a sane input size, keep the beginning + a middle sample).
-  - Output contract: JSON array of tweet strings, 3–6 tweets. Defensive parse, one retry. Stored as `threads.draft_json`; entry `state=drafted`.
+  - Output contract *(upgraded 2026-08-20)*: schema-validated structured output (`--json-schema`, `{tweets: string[]}`) — 3–6 tweets requested, shape guaranteed by the CLI; normalized (trimmed, empties dropped, capped) in code. One retry. Stored as `threads.draft_json`; entry `state=drafted`.
 - **Editor** ([mockup](../../planning/4-mockups/editor.html)), route `/item/:id`:
   - Left: filter's take + source material (transcript in a scrollable mono block with word count, or tweet text / summary), link out.
   - Right: one auto-sizing textarea per tweet (**`field-sizing: content` + generous min-height — boxes always fit their text**, per mockup feedback), `n / total` label, live char count, **over-280 turns crimson bold** (visual warning only — the owner may intend it for X Premium).

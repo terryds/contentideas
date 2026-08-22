@@ -1,5 +1,5 @@
 import { getSetting } from "../db/db";
-import { runClaude } from "./claude";
+import { runClaudeStructured } from "./claude";
 
 export interface Verdict {
   matched: boolean;
@@ -8,32 +8,6 @@ export interface Verdict {
   topics: string[];
   /** Tags from the owner's vocabulary (Settings). Best-effort — may be empty. */
   tags: string[];
-}
-
-// The output contract lives here in code; the taste lives in the settings prompt.
-// The TOPICS and TAGS lines ride on the same call, so clustering and
-// classification cost no extra claude -p runs.
-function contract(vocabulary: string[]): string {
-  const lines = [
-    `Respond with EXACTLY ${vocabulary.length > 0 ? "three" : "two"} lines and nothing else:`,
-    "Line 1, one of these two forms:",
-    "MATCH: <one line explaining why this fits>",
-    "SKIP: <one line explaining why not>",
-    "Line 2:",
-    "TOPICS: <2-4 kebab-case slugs, comma-separated>",
-    "Topic slugs identify THE SPECIFIC STORY so the same story from another source " +
-      "gets the same slugs: use the most canonical name for the event plus its key " +
-      "entities (e.g. TOPICS: gpt-6-release, openai). Lowercase, hyphenated, no spaces.",
-  ];
-  if (vocabulary.length > 0) {
-    lines.push(
-      "Line 3:",
-      "TAGS: <zero or more tags, comma-separated, chosen STRICTLY from this list (or the word none)>",
-      `Allowed tags: ${vocabulary.join(", ")}`,
-      "Apply every tag that fits the entry; invent nothing outside the list.",
-    );
-  }
-  return lines.join("\n");
 }
 
 const MAX_TOPICS = 4;
@@ -49,31 +23,52 @@ export function tagVocabulary(): string[] {
   )];
 }
 
-function parseSlugLine(output: string, label: string): string[] {
-  const line = output.match(new RegExp(`^\\s*${label}\\s*[:—–-]\\s*(.+)$`, "im"))?.[1];
-  if (!line) return [];
-  return [...new Set(
-    line
-      .split(",")
-      .map((slug) => slug.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, ""))
-      .filter((slug) => slug.length > 1),
-  )];
+// Verdict shape enforced by the CLI itself (claude -p --json-schema): the model
+// is forced through a schema-validated tool call, so no text parsing exists.
+// The tag vocabulary rides in as an enum — off-list tags are impossible at the
+// model level; normalizeVerdict below stays as belt-and-braces.
+function verdictSchema(vocabulary: string[]): object {
+  return {
+    type: "object",
+    properties: {
+      matched: { type: "boolean" },
+      reason: { type: "string", minLength: 1 },
+      topics: { type: "array", items: { type: "string" }, minItems: 1, maxItems: MAX_TOPICS },
+      tags:
+        vocabulary.length > 0
+          ? { type: "array", items: { type: "string", enum: vocabulary }, maxItems: vocabulary.length }
+          : { type: "array", items: { type: "string" }, maxItems: 0 },
+    },
+    required: ["matched", "reason", "topics", "tags"],
+  };
+}
+
+function sanitizeSlug(slug: string): string {
+  return slug.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 }
 
 /** Keep only tags from the vocabulary — the model never gets to invent labels. */
 export function sanitizeTags(raw: string[], vocabulary: string[]): string[] {
-  return raw.filter((tag) => vocabulary.includes(tag));
+  return [...new Set(raw.map(sanitizeSlug))].filter((tag) => vocabulary.includes(tag));
 }
 
-export function parseVerdict(output: string, vocabulary: string[] = []): Verdict {
-  const match = output.match(/^\s*(MATCH|SKIP)\s*[:—–-]?\s*(.*)$/im);
-  if (!match) throw new Error(`Filter output had no MATCH/SKIP verdict: "${output.slice(0, 120)}"`);
+interface RawVerdict {
+  matched?: unknown;
+  reason?: unknown;
+  topics?: unknown;
+  tags?: unknown;
+}
+
+/** Normalize a schema-validated verdict object. Pure — exported for tests. */
+export function normalizeVerdict(raw: RawVerdict, vocabulary: string[] = []): Verdict {
+  if (typeof raw.matched !== "boolean") throw new Error("Filter output had no boolean `matched`");
+  const topics = Array.isArray(raw.topics) ? raw.topics.filter((t): t is string => typeof t === "string") : [];
+  const tags = Array.isArray(raw.tags) ? raw.tags.filter((t): t is string => typeof t === "string") : [];
   return {
-    matched: match[1].toUpperCase() === "MATCH",
-    reason: match[2].trim() || (match[1].toUpperCase() === "MATCH" ? "matched" : "skipped"),
-    // Missing TOPICS/TAGS lines never fail the verdict — both are best-effort.
-    topics: parseSlugLine(output, "TOPICS").slice(0, MAX_TOPICS),
-    tags: sanitizeTags(parseSlugLine(output, "TAGS"), vocabulary),
+    matched: raw.matched,
+    reason: (typeof raw.reason === "string" && raw.reason.trim()) || (raw.matched ? "matched" : "skipped"),
+    topics: [...new Set(topics.map(sanitizeSlug))].filter((slug) => slug.length > 1).slice(0, MAX_TOPICS),
+    tags: sanitizeTags(tags, vocabulary),
   };
 }
 
@@ -95,8 +90,16 @@ export async function filterEntry(entry: {
     `Source: ${entry.source_label}`,
     `Content: ${(entry.content ?? "").slice(0, 4000) || "(no summary available)"}`,
     "",
-    "## Output format",
-    contract(vocabulary),
+    "## Your judgment (structured)",
+    "matched: does this entry fit the owner's taste?",
+    "reason: ONE line explaining why it fits or why not.",
+    "topics: 2-4 kebab-case slugs identifying THE SPECIFIC STORY, so the same story " +
+      "from another source gets the same slugs — the most canonical name for the event " +
+      "plus its key entities (e.g. gpt-6-release, openai).",
+    vocabulary.length > 0
+      ? `tags: every tag that fits the entry, chosen strictly from: ${vocabulary.join(", ")}. Empty array if none fit.`
+      : "tags: always an empty array.",
   ].join("\n");
-  return runClaude(prompt, (output) => parseVerdict(output, vocabulary), { timeoutMs: 60_000 });
+  const raw = await runClaudeStructured<RawVerdict>(prompt, verdictSchema(vocabulary), { timeoutMs: 60_000 });
+  return normalizeVerdict(raw, vocabulary);
 }

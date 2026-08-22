@@ -56,11 +56,14 @@ if (!Bun.which(process.env.CONTENT_ENGINE_CLAUDE_BIN ?? "claude")) {
 } else {
   ok("`claude` binary found");
   try {
-    const { runClaude } = await import("./server/llm/claude");
-    await runClaude("Reply with exactly: ok", (out) => out, { timeoutMs: 90_000 });
-    ok("`claude -p` responds — logged in");
+    // Exercises the exact path the app uses: structured output via --json-schema.
+    const { runClaudeStructured } = await import("./server/llm/claude");
+    await runClaudeStructured("Set ok to true.", {
+      type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"],
+    }, { timeoutMs: 90_000 });
+    ok("`claude -p` structured output works — logged in, --json-schema supported");
   } catch (err) {
-    fail(`\`claude -p\` failed: ${message(err)}`, "run `claude` once interactively and log in");
+    fail(`\`claude -p\` failed: ${message(err)}`, "log in via `claude`, and update the CLI if --json-schema is unsupported");
   }
 }
 
