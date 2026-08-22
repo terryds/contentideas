@@ -155,3 +155,9 @@ Also: **Settings → Danger zone → "Clear history data"** (spec'd in plans/set
 ## Filter model → latest Sonnet (2026-08-20)
 
 **Owner's call:** judgments/classification (verdict + topics + tags — one structured call) now run with `--model sonnet` (tracks latest Sonnet); thread generation stays on the CLI's default model where voice quality matters. `RunClaudeOptions.model` added to the seam. Verified live: 9s on-vocabulary verdict via Sonnet; suite 73/73, tsc clean.
+
+## Drafts tab + auto-drafting (2026-08-20)
+
+**Built (spec first — plans/threads.md, plans/settings.md):** drafting extracted into `server/drafts.ts` — the ONE place threads are generated (entry + cluster, incl. the YouTube transcript retry and the replace-after-successful-parse guarantee) — now shared by the dashboard routes and a new end-of-run `autoDraftPass`. Two owner controls (Settings → Auto-drafts): "from trending stories" (ON by default — every active at-threshold cluster without a thread gets a cluster draft) and "from tags" (per-tag checkboxes over the vocabulary; entries judged THIS run that matched with a selected tag and lack a thread get an entry draft). Auto-drafted threads are ordinary rows — Regenerate/edit/posted work unchanged; a subject with a thread is never re-drafted. Each run ends with ONE Telegram draft digest (bold linked title + first-tweet preview); informational — failed sends are recorded, not retried. New **Drafts** nav tab: every thread ever drafted (All/Unposted/Posted chips, counts, first-tweet preview, 📈 chip for cluster drafts), each card opening its editor; served by `GET /api/threads`.
+
+**Verified:** suite 77/77 — tag auto-drafts (threads created from a run, states → drafted, digest attempt recorded, Drafts API counts/filters, second run drafts nothing), trending auto-drafts (one cluster thread, never re-drafted, setting=0 respected), draft-digest composer. tsc + vite clean.
