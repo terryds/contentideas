@@ -115,78 +115,86 @@ interface Candidate extends RankCandidate {
   fallbackUrl: string | null;
 }
 
-function collectCandidates(runId: number): Candidate[] {
+function collectClusterCandidates(): Candidate[] {
   const candidates: Candidate[] = [];
-
-  if ((getSetting("auto_draft_trending") ?? "1") === "1") {
-    for (const cluster of activeClusters()) {
-      if (cluster.thread_id != null || cluster.dismissed_at) continue;
-      const memberScores = (
-        db
-          .prepare(
-            `SELECT MAX(e.score) AS best FROM cluster_entries ce JOIN entries e ON e.id = ce.entry_id WHERE ce.cluster_id = ?`,
-          )
-          .get(cluster.id) as { best: number | null }
-      ).best;
-      candidates.push({
-        key: `cluster:${cluster.id}`,
-        kind: "cluster",
-        id: cluster.id,
-        title: cluster.title,
-        source: [...new Set(cluster.members.map((m) => m.source_label))].join(", "),
-        reason: null,
-        // Cross-source corroboration bonus: a story in several places outranks its best member.
-        score: memberScores != null ? Math.min(10, memberScores + 1) : null,
-        tags: [],
-        sourcesCount: cluster.sources_count,
-        fallbackUrl: cluster.members.find((m) => m.url)?.url ?? null,
-      });
-    }
+  if ((getSetting("auto_draft_trending") ?? "1") !== "1") return candidates;
+  for (const cluster of activeClusters()) {
+    if (cluster.thread_id != null || cluster.dismissed_at) continue;
+    const memberScores = (
+      db
+        .prepare(
+          `SELECT MAX(e.score) AS best FROM cluster_entries ce JOIN entries e ON e.id = ce.entry_id WHERE ce.cluster_id = ?`,
+        )
+        .get(cluster.id) as { best: number | null }
+    ).best;
+    candidates.push({
+      key: `cluster:${cluster.id}`,
+      kind: "cluster",
+      id: cluster.id,
+      title: cluster.title,
+      source: [...new Set(cluster.members.map((m) => m.source_label))].join(", "),
+      reason: null,
+      // Cross-source corroboration bonus: a story in several places outranks its best member.
+      score: memberScores != null ? Math.min(10, memberScores + 1) : null,
+      tags: [],
+      sourcesCount: cluster.sources_count,
+      fallbackUrl: cluster.members.find((m) => m.url)?.url ?? null,
+    });
   }
-
-  const selectedTags = autoDraftTags();
-  if (selectedTags.length > 0) {
-    const rows = db
-      .prepare(
-        `SELECT e.* FROM entries e
-         WHERE e.filtered_run_id = ? AND e.filter_status = 'matched'
-           AND NOT EXISTS (SELECT 1 FROM threads t WHERE t.entry_id = e.id)
-           AND EXISTS (SELECT 1 FROM json_each(COALESCE(e.tags, '[]')) WHERE json_each.value IN (${selectedTags.map(() => "?").join(",")}))
-         ORDER BY e.id`,
-      )
-      .all(runId, ...selectedTags) as (DraftableEntry & {
-      filter_reason: string | null;
-      score: number | null;
-      tags: string | null;
-      source_label: string;
-    })[];
-    for (const entry of rows) {
-      candidates.push({
-        key: `entry:${entry.id}`,
-        kind: "entry",
-        id: entry.id,
-        title: entry.title,
-        source: entry.source_label,
-        reason: entry.filter_reason,
-        score: entry.score,
-        tags: entry.tags ? (JSON.parse(entry.tags) as string[]) : [],
-        fallbackUrl: entry.url,
-      });
-    }
-  }
-
   return candidates;
 }
 
+function collectTagCandidates(runId: number): Candidate[] {
+  const selectedTags = autoDraftTags();
+  if (selectedTags.length === 0) return [];
+  const rows = db
+    .prepare(
+      `SELECT e.* FROM entries e
+       WHERE e.filtered_run_id = ? AND e.filter_status = 'matched'
+         AND NOT EXISTS (SELECT 1 FROM threads t WHERE t.entry_id = e.id)
+         AND EXISTS (SELECT 1 FROM json_each(COALESCE(e.tags, '[]')) WHERE json_each.value IN (${selectedTags.map(() => "?").join(",")}))
+       ORDER BY e.id`,
+    )
+    .all(runId, ...selectedTags) as (DraftableEntry & {
+    filter_reason: string | null;
+    score: number | null;
+    tags: string | null;
+    source_label: string;
+  })[];
+  return rows.map((entry) => ({
+    key: `entry:${entry.id}`,
+    kind: "entry" as const,
+    id: entry.id,
+    title: entry.title,
+    source: entry.source_label,
+    reason: entry.filter_reason,
+    score: entry.score,
+    tags: entry.tags ? (JSON.parse(entry.tags) as string[]) : [],
+    fallbackUrl: entry.url,
+  }));
+}
+
 /**
- * End-of-run auto-drafting with two-stage ranking (anti-overwhelm, 2026-08-20):
- * collect candidates (trending clusters + tag-selected new matches), let ONE
- * comparative ranking call pick at most `max_auto_drafts` (fewer/zero allowed),
- * draft the picks best-first, and send one shortlist digest. Ranker failure
- * falls back to stage-1 score order. Unpicked candidates stay in the Inbox.
+ * Per-run auto-drafting (tag-triggered): entries judged this run carrying a
+ * selected tag, ranked comparatively, capped. Trending clusters are drafted by
+ * the DAILY trending job instead (autoDraftTrendingPass) — separate rhythm.
  */
 export async function autoDraftPass(runId: number): Promise<void> {
-  const candidates = collectCandidates(runId);
+  await rankAndDraft(collectTagCandidates(runId), runId);
+}
+
+/** The daily trending job's drafting half: cluster candidates only. */
+export async function autoDraftTrendingPass(runId: number): Promise<void> {
+  await rankAndDraft(collectClusterCandidates(), runId);
+}
+
+/**
+ * Two-stage ranking + cap (anti-overwhelm, 2026-08-20): ONE comparative ranking
+ * call picks at most `max_auto_drafts` (fewer/zero allowed), drafts best-first,
+ * sends one shortlist digest. Ranker failure falls back to stage-1 score order.
+ * Unpicked candidates stay in the Inbox.
+ */
+async function rankAndDraft(candidates: Candidate[], runId: number): Promise<void> {
   if (candidates.length === 0) return;
 
   const capRaw = Number(getSetting("max_auto_drafts") ?? "3");

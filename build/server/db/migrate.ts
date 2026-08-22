@@ -63,6 +63,24 @@ const migrations: string[] = [
   "ALTER TABLE entries ADD COLUMN tags TEXT",
   // 8 — rubric priority score (1-10) from the filter judgment; ranks auto-draft candidates.
   "ALTER TABLE entries ADD COLUMN score INTEGER",
+  // 9 — the daily trending job records itself in run history: rebuild runs to
+  // allow trigger='trending' (SQLite can't edit a CHECK in place).
+  `
+  CREATE TABLE runs_new (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    trigger     TEXT NOT NULL CHECK (trigger IN ('cron','manual','trending')),
+    started_at  TEXT NOT NULL,
+    finished_at TEXT,
+    new_count     INTEGER NOT NULL DEFAULT 0,
+    matched_count INTEGER NOT NULL DEFAULT 0,
+    failed_count  INTEGER NOT NULL DEFAULT 0,
+    error_text  TEXT
+  );
+  INSERT INTO runs_new (id, trigger, started_at, finished_at, new_count, matched_count, failed_count, error_text)
+    SELECT id, trigger, started_at, finished_at, new_count, matched_count, failed_count, error_text FROM runs;
+  DROP TABLE runs;
+  ALTER TABLE runs_new RENAME TO runs;
+  `,
 ];
 
 const defaultSettings: Record<string, string> = {
@@ -72,6 +90,7 @@ const defaultSettings: Record<string, string> = {
   auto_draft_trending: "1",
   auto_draft_tags: "",
   max_auto_drafts: "3",
+  trending_run_times: "09:00",
   dashboard_url: "",
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
   taste_prompt:

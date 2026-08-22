@@ -139,9 +139,14 @@ function RunRow({
         <span className="src" style={{ fontWeight: 700, fontSize: 13 }}>
           #{run.id}
         </span>
+        {run.trigger === "trending" && <Chip tone="warn">📈 trending</Chip>}
         <span className="src" style={{ color: "var(--muted)" }}>
-          {formatTime(run.started_at)} · {run.sources_count} sources · {run.new_count} new ·{" "}
-          {run.matched_count} matched · {duration}
+          {formatTime(run.started_at)}
+          {run.trigger === "trending"
+            ? " · daily trending job"
+            : ` · ${run.sources_count} sources · ${run.new_count} new · ${run.matched_count} matched`}
+          {" · "}
+          {duration}
         </span>
         <span style={{ flex: 1 }} />
         {runChip(run, running)}
@@ -302,9 +307,12 @@ export function Runs() {
     <main>
       <div className="row" style={{ justifyContent: "space-between", marginBottom: 4 }}>
         <h1>Cron runs</h1>
-        <Button onClick={runNow} disabled={running !== null}>
-          {running !== null ? "Running…" : "▶ Run now"}
-        </Button>
+        <span className="row" style={{ gap: 8 }}>
+          <Button onClick={() => api.triggerTrending().then(load)}>📈 Trending now</Button>
+          <Button onClick={runNow} disabled={running !== null}>
+            {running !== null ? "Running…" : "▶ Run now"}
+          </Button>
+        </span>
       </div>
       <p className="page-note">Every scheduled check, newest first. Click a run to see per-source details and errors.</p>
 

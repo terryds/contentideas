@@ -15,6 +15,7 @@ Sections per the [mockup](../../planning/4-mockups/settings.html), all persisted
 - **Floxy proxy:** host, port, username, password (secret). **Test connection** → fetch a known URL through a fresh proxy session; inline pass/fail with actionable text ("✕ 407 auth failed — check username/password").
 - **Twitter CLI:** `TWITTER_AUTH_TOKEN`, `TWITTER_CT0` (both secret). **Test auth** → twitter-cli whoami-equivalent; success shows "✓ Logged in as @handle".
 - **Auto-drafts** *(added 2026-08-20)*: two options — "Auto-generate thread drafts from trending stories" (checkbox, ON by default) and "Auto-generate thread drafts from tags" (per-tag checkboxes rendered from the vocabulary; selection stored as `auto_draft_tags`). See threads.md.
+- **Trending schedule** *(added 2026-08-20)*: `trending_run_times` — HH:MM list (default `09:00`), interpreted in the global `timezone`; when the daily trending job runs (see trending.md). Editable in the Trending card.
 - **Max auto-drafts per run** *(added 2026-08-20)*: `max_auto_drafts`, integer 1–10, default 3 — the cap handed to the ranking stage (see threads.md).
 - **Tags** *(added 2026-08-20)*: comma-separated vocabulary the filter classifies every entry against (multiple per entry, only from this list). Empty = tagging off.
 - **Taste filter prompt:** multiline textarea; this text is the filter's core instruction (system additionally enforces the MATCH/SKIP output contract — the enforced envelope lives in code, the taste lives here).

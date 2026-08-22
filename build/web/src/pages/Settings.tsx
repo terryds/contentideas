@@ -31,6 +31,7 @@ const SECTION_OF: Record<string, string> = {
   generation_prompt: "Thread generation prompt",
   voice_examples_count: "Thread generation prompt",
   trending_threshold: "Trending",
+  trending_run_times: "Trending",
 };
 
 export function Settings() {
@@ -345,9 +346,19 @@ export function Settings() {
       <Card style={{ padding: 24, marginBottom: 24 }}>
         <h2>Trending</h2>
         <p className="sec-note">
-          When the same story appears in several sources within 48 hours, you get one Telegram ping — regardless of
-          the taste filter's verdict.
+          A daily trending job clusters the day's entries, pings you about stories appearing in several sources
+          (regardless of taste verdicts), and auto-drafts the best of them. Runs at the times below, in your
+          configured time zone.
         </p>
+        <Field label="Run daily at (comma-separated, your timezone)" style={{ maxWidth: 300 }}>
+          <input
+            type="text"
+            className="mono-input"
+            placeholder="09:00 or 09:00, 19:00"
+            value={current("trending_run_times")}
+            onChange={(e) => edit("trending_run_times", e.target.value)}
+          />
+        </Field>
         <Field label="Notify when a story appears in N sources" style={{ maxWidth: 300 }}>
           <select value={current("trending_threshold")} onChange={(e) => edit("trending_threshold", e.target.value)}>
             {[2, 3, 4, 5].map((n) => (

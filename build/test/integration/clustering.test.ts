@@ -3,7 +3,8 @@
 import { describe, expect, test, beforeAll, beforeEach } from "bun:test";
 import { db, nowIso, setSetting } from "../../server/db/db";
 import { activeClusters, distinctSourceCount, normalizeUrlKey, trendingPass } from "../../server/trending/cluster";
-import { autoDraftPass } from "../../server/drafts";
+import { autoDraftTrendingPass } from "../../server/drafts";
+import { runTrendingJob, trendingJobDue } from "../../server/scheduler";
 import { claudeStubPath, resetDb } from "../helpers";
 
 let extId = 0;
@@ -131,7 +132,7 @@ describe("trending clustering", () => {
     await trendingPass(newRun());
 
     const runId = newRun();
-    await autoDraftPass(runId);
+    await autoDraftTrendingPass(runId);
     const threads = db.prepare("SELECT * FROM threads").all() as { cluster_id: number | null; entry_id: number | null }[];
     expect(threads).toHaveLength(1);
     expect(threads[0].cluster_id).not.toBeNull();
@@ -140,7 +141,7 @@ describe("trending clustering", () => {
 
     // Second pass: the cluster has a thread → skipped, no digest.
     const run2 = newRun();
-    await autoDraftPass(run2);
+    await autoDraftTrendingPass(run2);
     expect((db.prepare("SELECT COUNT(*) AS n FROM threads").get() as { n: number }).n).toBe(1);
     expect(runError(run2)).toBe("");
 
@@ -149,8 +150,32 @@ describe("trending clustering", () => {
     addEntry(srcA, "Other story", "https://b.com/x", ["other-story", "entity2"]);
     addEntry(srcB, "Other story too", "https://b.com/x", ["other-story", "entity2"]);
     await trendingPass(newRun());
-    await autoDraftPass(newRun());
+    await autoDraftTrendingPass(newRun());
     expect((db.prepare("SELECT COUNT(*) AS n FROM threads").get() as { n: number }).n).toBe(1);
+  });
+
+  test("the daily trending job: due by schedule, records a trigger='trending' run, clusters + drafts", async () => {
+    process.env.CONTENT_ENGINE_CLAUDE_BIN = claudeStubPath();
+    setSetting("trending_run_times", "00:00"); // an occurrence has always passed today
+    db.prepare("DELETE FROM settings WHERE key = 'trending_last_run_at'").run();
+    expect(trendingJobDue(Date.now())).toBe(true);
+
+    addEntry(srcA, "Story", "https://a.com/s", ["story-slug", "entity"]);
+    addEntry(srcB, "Story again", "https://a.com/s", ["story-slug", "entity"]);
+    const runId = await runTrendingJob("manual");
+    expect(runId).not.toBeNull();
+
+    const run = db.prepare("SELECT * FROM runs WHERE id = ?").get(runId) as Record<string, unknown>;
+    expect(run.trigger).toBe("trending");
+    expect(run.finished_at).toBeTruthy();
+    // Clustered, trending digest attempted, and the cluster auto-drafted with a draft digest attempt.
+    expect((db.prepare("SELECT COUNT(*) AS n FROM clusters").get() as { n: number }).n).toBe(1);
+    expect(runError(runId as number)).toContain("Trending Telegram send failed");
+    expect(runError(runId as number)).toContain("Draft digest send failed");
+    expect((db.prepare("SELECT COUNT(*) AS n FROM threads WHERE cluster_id IS NOT NULL").get() as { n: number }).n).toBe(1);
+
+    // The job stamped itself — no longer due until the next scheduled occurrence.
+    expect(trendingJobDue(Date.now())).toBe(false);
   });
 
   test("dismissed clusters stop surfacing and never notify", async () => {

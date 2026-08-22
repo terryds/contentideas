@@ -9,9 +9,13 @@ A second, independent notification signal: when the same story surfaces in multi
 1. **URL identity** — every entry gets a `url_key` at ingestion: its outbound URL(s) normalized — lowercase host, strip `www.`, drop `utm_*`/`ref`/`fbclid`/`gclid` params, drop fragment and trailing slash. HN entries use their article URL (not the HN item page); tweets use their first embedded link; RSS items their link; YouTube videos their watch URL. Same `url_key` ⇒ same story, no LLM needed.
 2. **Topic identity** — the existing per-entry filter call in `llm/filter.ts` is extended: alongside MATCH/SKIP + reason, the model returns `topics`: 2–4 canonical kebab-case slugs (entities + the specific event, e.g. `["gpt-6-release", "openai"]` — the event slug matters; bare entity slugs alone are too sticky). Stored on the entry as JSON. **No additional `claude -p` calls.**
 
+## The trending job *(reworked 2026-08-20 — own schedule, batch rhythm)*
+
+Trending no longer runs inside every fetch run. It is a **separate daily job** with its own clock schedule: `trending_run_times` (HH:MM list, default `09:00`, up to 8, interpreted in the global `timezone` setting). The master minute-tick fires it when a scheduled occurrence has passed since `trending_last_run_at` (missed slots fire once at boot, same semantics as clock-mode sources). Each firing creates a **`runs` row with `trigger='trending'`** (runs-table CHECK rebuilt by migration) so it appears in run history with its errors, and then: clusters every not-yet-clustered filtered entry in the 48h window → sends the trending digest for newly at-threshold clusters → ranks cluster candidates and auto-drafts the best (see threads.md). A "Run trending now" button on the Runs page triggers the same job manually. Consequence, by design: a story crossing the threshold at 10:00 waits for the next scheduled trending run — batch rhythm over immediacy.
+
 ## Clustering
 
-Runs inside `runOnce()` after the filter pass, for every newly filtered entry (excluding initial-import entries):
+Runs inside the trending job, for every newly filtered entry (excluding initial-import entries):
 
 - Find clusters with activity in the last **48 hours** (code constant) where the entry's `url_key` matches one of the cluster's `url_keys`, **or** ≥ 2 of its topic slugs overlap the cluster's slug set. Join the most recently active match (updating the cluster's slug union, url_keys, last_activity); otherwise create a new cluster seeded with this entry.
 - Cluster fields: canonical title = first member's title; slug union capped at 8 (stop absorbing new slugs past that — prevents mega-cluster drift).

@@ -1,4 +1,4 @@
-import { appendRunError, db, getSetting, nowIso } from "./db/db";
+import { appendRunError, db, getSetting, nowIso, setSetting } from "./db/db";
 import { latestOccurrence, nextOccurrence, parseScheduleTimes } from "./clock";
 import { rssFetcher } from "./fetchers/rss";
 import { hackerNewsFetcher } from "./fetchers/hackernews";
@@ -9,7 +9,7 @@ import { filterEntry } from "./llm/filter";
 import { ClaudeUnavailableError } from "./llm/claude";
 import { sendMatchDigest } from "./notify/telegram";
 import { normalizeUrlKey, trendingPass } from "./trending/cluster";
-import { autoDraftPass } from "./drafts";
+import { autoDraftPass, autoDraftTrendingPass } from "./drafts";
 
 // New source types register here (plus a type-select option in the Sources UI).
 const fetchers: Partial<Record<SourceRow["type"], Fetcher>> = {
@@ -34,9 +34,16 @@ let cronJob: { stop(): void } | null = null;
 export function registerSchedule(): void {
   if (cronJob) return;
   cronJob = Bun.cron("* * * * *", () => {
-    runOnce("cron").catch((err) => console.error("[run] cron run crashed:", err));
+    runOnce("cron")
+      .catch((err) => console.error("[run] cron run crashed:", err))
+      .finally(() => {
+        // The daily trending job rides the same tick, after fetch/filter work.
+        if (trendingJobDue(Date.now())) {
+          runTrendingJob("cron").catch((err) => console.error("[trending] job crashed:", err));
+        }
+      });
   });
-  console.log("[scheduler] master tick registered: every minute, due sources only");
+  console.log("[scheduler] master tick registered: every minute, due sources + trending schedule");
 }
 
 function intervalMs(source: SourceRow): number {
@@ -204,8 +211,7 @@ export async function runOnce(trigger: "cron" | "manual"): Promise<number | null
 
     await filterPass(runId);
     await notifyPass(runId);
-    await trendingPass(runId); // M7 — after individual pings; degrades the run, never fails it
-    await autoDraftPass(runId); // auto-drafts for trending + selected tags; degrades, never fails
+    await autoDraftPass(runId); // tag-triggered auto-drafts; trending drafts belong to the daily job
     finalizeRun(runId);
   } finally {
     currentRunId = null;
@@ -328,6 +334,49 @@ async function notifyPass(runId: number): Promise<void> {
     console.error(`[notify] digest (${matches.length} matches): ${message}`);
     appendRunError(runId, `Telegram send failed for ${matches.length} match${matches.length === 1 ? "" : "es"}: ${message}`);
   }
+}
+
+/* ---------- the daily trending job (own schedule, 2026-08-20) ----------
+ * Batch rhythm: at the owner's chosen time(s), cluster the day's entries,
+ * announce what's trending, and draft the best clusters. Recorded in run
+ * history as trigger='trending'. */
+
+let trendingRunning = false;
+
+function trendingRunTimes(): string[] {
+  return parseScheduleTimes(getSetting("trending_run_times") ?? "09:00") ?? ["09:00"];
+}
+
+/** Due when a scheduled occurrence (owner's timezone) has passed since the last job. */
+export function trendingJobDue(now: number): boolean {
+  const occurrence = latestOccurrence(trendingRunTimes(), timezone(), now);
+  if (!Number.isFinite(occurrence)) return false;
+  const last = getSetting("trending_last_run_at");
+  return !last || Date.parse(last) < occurrence;
+}
+
+export function trendingJobRunning(): boolean {
+  return trendingRunning;
+}
+
+export async function runTrendingJob(trigger: "cron" | "manual"): Promise<number | null> {
+  if (trendingRunning) return null;
+  trendingRunning = true;
+  // Stamped at start so a long job can't re-fire on the next tick.
+  setSetting("trending_last_run_at", nowIso());
+  const runId = db
+    .prepare("INSERT INTO runs (trigger, started_at) VALUES ('trending', ?)")
+    .run(nowIso()).lastInsertRowid as number;
+  console.log(`[trending] job #${runId} started (${trigger})`);
+  try {
+    await trendingPass(runId); // cluster the window's entries + trending digest
+    await autoDraftTrendingPass(runId); // rank clusters, draft the best, draft digest
+    finalizeRun(runId);
+  } finally {
+    trendingRunning = false;
+  }
+  console.log(`[trending] job #${runId} finished`);
+  return runId;
 }
 
 function finalizeRun(runId: number): void {

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { db } from "../db/db";
-import { nextRunAt, runOnce, runningRunId } from "../scheduler";
+import { nextRunAt, runOnce, runningRunId, runTrendingJob, trendingJobRunning } from "../scheduler";
 
 const runs = new Hono();
 
@@ -32,6 +32,13 @@ runs.get("/:id", (c) => {
     )
     .all(c.req.param("id"));
   return c.json({ run, sources, entries });
+});
+
+// Manual firing of the daily trending job (cluster + trending digest + drafts).
+runs.post("/trigger-trending", (c) => {
+  if (trendingJobRunning()) return c.json({ runId: null, alreadyRunning: true });
+  runTrendingJob("manual").catch((err) => console.error("[trending] manual job crashed:", err));
+  return c.json({ ok: true, alreadyRunning: false });
 });
 
 runs.post("/trigger", (c) => {

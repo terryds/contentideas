@@ -116,7 +116,7 @@ export interface Cluster {
 
 export interface Run {
   id: number;
-  trigger: "cron" | "manual";
+  trigger: "cron" | "manual" | "trending";
   started_at: string;
   finished_at: string | null;
   new_count: number;
@@ -217,6 +217,8 @@ export const api = {
   listRuns: () => request<{ runs: Run[]; running: number | null; nextAt: string | null }>("/api/runs"),
   getRun: (id: number) => request<{ run: Run; sources: RunSource[]; entries: RunEntry[] }>(`/api/runs/${id}`),
   triggerRun: () => request<{ runId: number | null; alreadyRunning: boolean }>("/api/runs/trigger", { method: "POST" }),
+  triggerTrending: () =>
+    request<{ ok?: true; alreadyRunning: boolean }>("/api/runs/trigger-trending", { method: "POST" }),
 
   getSettings: () => request<SettingsPayload>("/api/settings"),
   saveSettings: (values: Record<string, string>) =>

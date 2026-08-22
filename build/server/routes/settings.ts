@@ -20,6 +20,7 @@ export const PLAIN_KEYS = [
   "auto_draft_trending",
   "auto_draft_tags",
   "max_auto_drafts",
+  "trending_run_times",
   "dashboard_url",
   "taste_prompt",
   "generation_prompt",
@@ -57,6 +58,11 @@ settings.put("/", async (c) => {
       return c.json({ error: "auto_draft_trending must be 0 or 1" }, 400);
     if (key === "max_auto_drafts" && !/^([1-9]|10)$/.test(value))
       return c.json({ error: "Max auto-drafts must be a number from 1 to 10" }, 400);
+    if (key === "trending_run_times") {
+      const { parseScheduleTimes } = await import("../clock");
+      if (!parseScheduleTimes(value))
+        return c.json({ error: 'Trending run times must be comma-separated HH:MM (24h), e.g. "09:00" or "09:00, 19:00"' }, 400);
+    }
     if (key === "dashboard_url" && value !== "" && !/^https?:\/\/.+/.test(value))
       return c.json({ error: "Dashboard URL must start with http:// or https:// (or be empty)" }, 400);
     if (key === "timezone") {

@@ -3,7 +3,7 @@
 
 import { describe, expect, test, beforeAll, afterAll, beforeEach } from "bun:test";
 import { db } from "../../server/db/db";
-import { runOnce } from "../../server/scheduler";
+import { runOnce, runTrendingJob } from "../../server/scheduler";
 import { createApp } from "../../server/app";
 import { claudeStubPath, resetDb, rssDoc, serveFixture, type FixtureServer } from "../helpers";
 
@@ -107,7 +107,12 @@ describe("ingestion pipeline", () => {
     expect(String(runRow.error_text)).toContain("Telegram send failed");
     expect(fresh.state).toBe("new");
 
-    // The matched entry seeded a cluster, but one source never surfaces as trending.
+    // Clustering belongs to the daily trending job now — fetch runs never cluster.
+    expect((db.prepare("SELECT COUNT(*) AS n FROM clusters").get() as { n: number }).n).toBe(0);
+    const trendingRun = (await runTrendingJob("manual")) as number;
+    expect(
+      (db.prepare("SELECT trigger FROM runs WHERE id = ?").get(trendingRun) as { trigger: string }).trigger,
+    ).toBe("trending");
     expect((db.prepare("SELECT COUNT(*) AS n FROM clusters").get() as { n: number }).n).toBe(1);
     const inbox = (await app.request("/api/entries?filter=all").then((r) => r.json())) as {
       entries: unknown[]; clusters: unknown[];
