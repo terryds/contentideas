@@ -41,6 +41,7 @@ function EntryRow({ entry }: { entry: RunEntry }) {
         ) : (
           <span style={{ fontWeight: 600 }}>{entry.title}</span>
         )}
+        {entry.score != null && <Chip tone={entry.score >= 7 ? "good" : "neutral"}>★{entry.score}</Chip>}
         {parseTags(entry.tags).map((tag) => (
           <Chip key={tag} tone="neutral">
             #{tag}

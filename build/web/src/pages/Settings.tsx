@@ -26,6 +26,7 @@ const SECTION_OF: Record<string, string> = {
   tags: "Tags",
   auto_draft_trending: "Auto-drafts",
   auto_draft_tags: "Auto-drafts",
+  max_auto_drafts: "Auto-drafts",
   taste_prompt: "Taste filter prompt",
   generation_prompt: "Thread generation prompt",
   voice_examples_count: "Thread generation prompt",
@@ -244,9 +245,19 @@ export function Settings() {
       <Card style={{ padding: 24, marginBottom: 24 }}>
         <h2>Auto-drafts</h2>
         <p className="sec-note">
-          Generate thread drafts automatically at the end of each check. Auto-drafted threads land in the Drafts
-          tab, get announced in a Telegram digest, and can be regenerated/edited like any other draft.
+          Generate thread drafts automatically at the end of each check. All candidates are ranked against each
+          other by one comparison call, and only the best get drafted (picking fewer than the cap — or none — is
+          allowed). Drafts land in the Drafts tab and get announced in a Telegram digest.
         </p>
+        <Field label="Max auto-drafts per run" style={{ maxWidth: 200 }}>
+          <input
+            type="number"
+            min={1}
+            max={10}
+            value={current("max_auto_drafts") || "3"}
+            onChange={(e) => edit("max_auto_drafts", e.target.value)}
+          />
+        </Field>
         <label className="row" style={{ gap: 8, marginBottom: 14, cursor: "pointer" }}>
           <input
             type="checkbox"

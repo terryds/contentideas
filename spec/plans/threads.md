@@ -22,8 +22,10 @@ The payoff: one click turns a matched item into a Twitter-thread draft in the ow
 ## Auto-drafts *(added 2026-08-20)*
 
 - Two owner-controlled triggers, both running at the end of each cron run (after filter/notify/trending), generating **ordinary thread rows** — Regenerate/edit/posted work identically to hand-clicked drafts:
-  - **Trending** (`auto_draft_trending`, ON by default): every active at-threshold cluster with no thread yet gets a cluster draft.
-  - **Tags** (`auto_draft_tags`, owner-selected subset of the vocabulary, empty = off): every entry judged *this run* that matched with at least one selected tag and has no thread yet gets an entry draft.
+  - **Trending** (`auto_draft_trending`, ON by default): active at-threshold clusters with no thread yet are draft *candidates*.
+  - **Tags** (`auto_draft_tags`, owner-selected subset of the vocabulary, empty = off): entries judged *this run* that matched with a selected tag and have no thread yet are draft *candidates*.
+- **Two-stage ranking + cap** *(added 2026-08-20 — anti-overwhelm)*: candidates are not all drafted. Stage 1: every entry already carries a rubric `score` 1–10 from its filter judgment (9–10 drop-everything … ≤4 marginal; stored, shown as a ★chip). Stage 2: when a run has >1 candidate, ONE extra `claude -p` call (`llm/ranker.ts`, Sonnet, structured) sees ALL candidates side by side — title, source, the filter's own reason, score, tags, cluster source-count — and picks **at most `max_auto_drafts`** (setting, default 3), each with a one-line *why*; **picking fewer, or zero, is explicitly allowed** ("only what's genuinely worth drafting today"). Single candidate skips the ranker; a failed ranker falls back to stage-1 score order (clusters score as max member score +1 for cross-source corroboration). Unpicked candidates stay ordinary matched entries in the Inbox.
+- **Digest** reflects the shortlist: header "Top K of N candidates", each bullet carrying the ranker's why + first-tweet preview.
 - Generation logic extracted to `server/drafts.ts` (shared by the routes and the auto pass; includes the YouTube transcript retry). Auto-drafting failures degrade the run (recorded, never fatal); each entry/cluster is attempted once per run, and having a thread makes it permanently skipped.
 - **Draft digest:** one Telegram message per run listing what was auto-drafted — bold title, source/cluster link, first-tweet preview. Informational: a failed send is recorded but NOT retried (the drafts exist; the dashboard shows them).
 

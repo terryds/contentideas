@@ -8,6 +8,8 @@ export interface Verdict {
   topics: string[];
   /** Tags from the owner's vocabulary (Settings). Best-effort — may be empty. */
   tags: string[];
+  /** Rubric-anchored priority 1–10 (see prompt). Null when the model omitted it. */
+  score: number | null;
 }
 
 const MAX_TOPICS = 4;
@@ -33,13 +35,14 @@ function verdictSchema(vocabulary: string[]): object {
     properties: {
       matched: { type: "boolean" },
       reason: { type: "string", minLength: 1 },
+      score: { type: "integer", minimum: 1, maximum: 10 },
       topics: { type: "array", items: { type: "string" }, minItems: 1, maxItems: MAX_TOPICS },
       tags:
         vocabulary.length > 0
           ? { type: "array", items: { type: "string", enum: vocabulary }, maxItems: vocabulary.length }
           : { type: "array", items: { type: "string" }, maxItems: 0 },
     },
-    required: ["matched", "reason", "topics", "tags"],
+    required: ["matched", "reason", "score", "topics", "tags"],
   };
 }
 
@@ -55,6 +58,7 @@ export function sanitizeTags(raw: string[], vocabulary: string[]): string[] {
 interface RawVerdict {
   matched?: unknown;
   reason?: unknown;
+  score?: unknown;
   topics?: unknown;
   tags?: unknown;
 }
@@ -64,9 +68,14 @@ export function normalizeVerdict(raw: RawVerdict, vocabulary: string[] = []): Ve
   if (typeof raw.matched !== "boolean") throw new Error("Filter output had no boolean `matched`");
   const topics = Array.isArray(raw.topics) ? raw.topics.filter((t): t is string => typeof t === "string") : [];
   const tags = Array.isArray(raw.tags) ? raw.tags.filter((t): t is string => typeof t === "string") : [];
+  const score =
+    typeof raw.score === "number" && Number.isFinite(raw.score)
+      ? Math.min(10, Math.max(1, Math.round(raw.score)))
+      : null;
   return {
     matched: raw.matched,
     reason: (typeof raw.reason === "string" && raw.reason.trim()) || (raw.matched ? "matched" : "skipped"),
+    score,
     topics: [...new Set(topics.map(sanitizeSlug))].filter((slug) => slug.length > 1).slice(0, MAX_TOPICS),
     tags: sanitizeTags(tags, vocabulary),
   };
@@ -93,6 +102,9 @@ export async function filterEntry(entry: {
     "## Your judgment (structured)",
     "matched: does this entry fit the owner's taste?",
     "reason: ONE line explaining why it fits or why not.",
+    "score: priority 1-10 on this rubric — 9-10: drop everything, the owner should post about this today; " +
+      "7-8: strong thread material; 5-6: fits the taste, nothing urgent; 3-4: marginal fit; 1-2: noise. " +
+      "Score skipped entries too (they'll be low).",
     "topics: 2-4 kebab-case slugs identifying THE SPECIFIC STORY, so the same story " +
       "from another source gets the same slugs — the most canonical name for the event " +
       "plus its key entities (e.g. gpt-6-release, openai).",

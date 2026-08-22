@@ -36,6 +36,14 @@ describe("normalizeVerdict (schema-validated structured output)", () => {
     expect(normalizeVerdict({ matched: false }).topics).toEqual([]);
   });
 
+  test("score is clamped to 1-10 integers; missing/garbage becomes null", () => {
+    expect(normalizeVerdict({ matched: true, score: 7 }).score).toBe(7);
+    expect(normalizeVerdict({ matched: true, score: 14 }).score).toBe(10);
+    expect(normalizeVerdict({ matched: true, score: 0.4 }).score).toBe(1);
+    expect(normalizeVerdict({ matched: true }).score).toBeNull();
+    expect(normalizeVerdict({ matched: true, score: "high" }).score).toBeNull();
+  });
+
   test("throws when matched is not a boolean", () => {
     expect(() => normalizeVerdict({ reason: "no verdict" })).toThrow(/no boolean/);
   });

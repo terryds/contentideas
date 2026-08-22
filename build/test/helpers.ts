@@ -28,8 +28,14 @@ export function claudeStubPath(): string {
 input=$(cat)
 if printf '%s' "$input" | grep -q "You write Twitter threads"; then
   echo '{"is_error":false,"subtype":"success","structured_output":{"tweets":["Stub tweet one about the story.","Stub tweet two with a detail.","Stub tweet three, the takeaway."]}}'
+elif printf '%s' "$input" | grep -q "chief content editor"; then
+  # Ranker: pick the first two candidate keys found in the prompt, in order.
+  picks=$(printf '%s' "$input" | grep -oE '"(entry|cluster):[0-9]+"' | head -2 | while read -r k; do
+    printf '{"key":%s,"why":"stub says this one stands out"},' "$k"
+  done)
+  echo "{\\"is_error\\":false,\\"subtype\\":\\"success\\",\\"structured_output\\":{\\"picks\\":[\${picks%,}]}}"
 else
-  echo '{"is_error":false,"subtype":"success","structured_output":{"matched":true,"reason":"stub filter says this fits","topics":["stub-story","stub-entity"],"tags":["stub-tag","invented-tag"]}}'
+  echo '{"is_error":false,"subtype":"success","structured_output":{"matched":true,"reason":"stub filter says this fits","topics":["stub-story","stub-entity"],"tags":["stub-tag","invented-tag"],"score":7}}'
 fi
 `,
   );

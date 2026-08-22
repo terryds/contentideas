@@ -65,6 +65,7 @@ describe("ingestion pipeline", () => {
     expect(JSON.parse(fresh.topics as string)).toEqual(["stub-story", "stub-entity"]);
     // vocabulary tag kept, the stub's invented tag discarded
     expect(JSON.parse(fresh.tags as string)).toEqual(["stub-tag"]);
+    expect(fresh.score).toBe(7); // rubric score stored from the same judgment
     expect(fresh.url_key).toBe("fixture.example/p3"); // tracking param stripped at ingestion
 
     // Tag filter + tag counts flow through the inbox API.
@@ -193,6 +194,24 @@ describe("ingestion pipeline", () => {
     expect((db.prepare("SELECT COUNT(*) AS n FROM threads").get() as { n: number }).n).toBe(2);
     const run2Row = db.prepare("SELECT error_text FROM runs WHERE id = ?").get(run2) as { error_text: string | null };
     expect(run2Row.error_text ?? "").not.toContain("Draft digest");
+  }, 30_000);
+
+  test("max_auto_drafts caps the ranked picks; unpicked candidates stay in the Inbox", async () => {
+    await addFixtureSource();
+    feed.setBody(rssDoc([...ITEMS, NEW_ITEM])); // 3 items in the feed
+    db.prepare("UPDATE settings SET value = 'stub-tag' WHERE key = 'tags'").run();
+    db.prepare("UPDATE settings SET value = 'stub-tag' WHERE key = 'auto_draft_tags'").run();
+    db.prepare("UPDATE settings SET value = '1' WHERE key = 'max_auto_drafts'").run();
+
+    await runOnce("manual"); // 3 candidates → ranker consulted → cap allows only 1 draft
+    expect((db.prepare("SELECT COUNT(*) AS n FROM threads").get() as { n: number }).n).toBe(1);
+    const states = db.prepare("SELECT state, COUNT(*) AS n FROM entries GROUP BY state ORDER BY state").all() as {
+      state: string; n: number;
+    }[];
+    expect(states).toEqual([
+      { state: "drafted", n: 1 },
+      { state: "new", n: 2 }, // unpicked: still ordinary matched entries
+    ]);
   }, 30_000);
 
   test("clock-mode source is due exactly when a scheduled time has passed since its last fetch", async () => {

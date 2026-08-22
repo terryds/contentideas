@@ -45,3 +45,4 @@ One line per decision + why. Append-only.
 - [v1.2] tags ride the existing filter call (third contract line, vocabulary-constrained, sanitized on parse) — classification costs zero extra claude calls; model can never invent labels
 - [v1.2] LLM seam migrated to claude -p --json-schema structured outputs — schema-enforced shapes (tag vocabulary as enum) replace regex line contracts; doctor verifies --json-schema support at onboarding
 - [v1.2] auto-drafts: trending ON by default, tag-triggered opt-in per tag; drafts generated once per subject (existing thread = permanent skip); draft digest is informational (no retry — the drafts exist either way)
+- [v1.2] auto-draft anti-overwhelm = two-stage: rubric score per entry (same filter call) + ONE comparative ranking call per run picking ≤max_auto_drafts (fewer/zero allowed) — isolated scores can't calibrate against each other, a side-by-side judge can; candidate keys schema-enum'd so picks can't hallucinate

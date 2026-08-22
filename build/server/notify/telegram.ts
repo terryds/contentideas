@@ -116,24 +116,30 @@ export interface DraftDigestItem {
   title: string;
   url: string | null;
   firstTweet: string;
+  /** The ranker's one-line reason this made the cut. */
+  why?: string;
 }
 
 /** Pure composer — exported for tests. */
-export function composeDraftDigest(items: DraftDigestItem[]): string {
-  const header = `🧵 ${items.length} thread draft${items.length === 1 ? "" : "s"} ready in your dashboard`;
+export function composeDraftDigest(items: DraftDigestItem[], totalCandidates?: number): string {
+  const header =
+    totalCandidates != null && totalCandidates > items.length
+      ? `🧵 Top ${items.length} of ${totalCandidates} candidates — draft${items.length === 1 ? "" : "s"} ready in your dashboard`
+      : `🧵 ${items.length} thread draft${items.length === 1 ? "" : "s"} ready in your dashboard`;
   const bullets = items.map((item) => {
     const title = item.url
       ? `<a href="${escapeAttr(item.url)}">${escapeHtml(item.title)}</a>`
       : escapeHtml(item.title);
+    const why = item.why ? `\n<i>${escapeHtml(clip(item.why, 150))}</i>` : "";
     const preview = item.firstTweet ? `\n“${escapeHtml(clip(item.firstTweet, 150))}”` : "";
-    return `• <b>${title}</b>${preview}`;
+    return `• <b>${title}</b>${why}${preview}`;
   });
   return assemble(header, bullets, "drafts");
 }
 
-export async function sendDraftDigest(items: DraftDigestItem[]): Promise<void> {
+export async function sendDraftDigest(items: DraftDigestItem[], totalCandidates?: number): Promise<void> {
   if (items.length === 0) return;
-  await send(composeDraftDigest(items), true);
+  await send(composeDraftDigest(items, totalCandidates), true);
 }
 
 export async function sendTest(): Promise<void> {

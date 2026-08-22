@@ -60,6 +60,16 @@ describe("composeDraftDigest", () => {
   test("singular header", () => {
     expect(composeDraftDigest([{ title: "T", url: null, firstTweet: "x" }])).toStartWith("🧵 1 thread draft ready");
   });
+
+  test("shortlist header + ranker's why when candidates outnumber picks", () => {
+    const digest = composeDraftDigest(
+      [{ title: "Winner", url: null, firstTweet: "hook", why: "strongest numbers of the batch" }],
+      13,
+    );
+    expect(digest).toStartWith("🧵 Top 1 of 13 candidates — draft ready in your dashboard");
+    expect(digest).toContain("<i>strongest numbers of the batch</i>");
+    expect(digest).toContain("“hook”");
+  });
 });
 
 describe("composeTrendingDigest", () => {

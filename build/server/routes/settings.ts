@@ -19,6 +19,7 @@ export const PLAIN_KEYS = [
   "tags",
   "auto_draft_trending",
   "auto_draft_tags",
+  "max_auto_drafts",
   "dashboard_url",
   "taste_prompt",
   "generation_prompt",
@@ -54,6 +55,8 @@ settings.put("/", async (c) => {
       return c.json({ error: "Trending threshold must be a number from 2 to 9" }, 400);
     if (key === "auto_draft_trending" && !["0", "1"].includes(value))
       return c.json({ error: "auto_draft_trending must be 0 or 1" }, 400);
+    if (key === "max_auto_drafts" && !/^([1-9]|10)$/.test(value))
+      return c.json({ error: "Max auto-drafts must be a number from 1 to 10" }, 400);
     if (key === "dashboard_url" && value !== "" && !/^https?:\/\/.+/.test(value))
       return c.json({ error: "Dashboard URL must start with http:// or https:// (or be empty)" }, 400);
     if (key === "timezone") {

@@ -7,6 +7,7 @@ import { generateClusterThread, generateThread } from "./llm/generator";
 import { tagVocabulary } from "./llm/filter";
 import { activeClusters } from "./trending/cluster";
 import { sendDraftDigest } from "./notify/telegram";
+import { rankCandidates, type RankCandidate, type RankPick } from "./llm/ranker";
 
 export interface DraftableEntry {
   id: number;
@@ -108,59 +109,133 @@ export function draftPageUrl(kind: "item" | "cluster", id: number): string | nul
   return base ? `${base}/${kind}/${id}` : null;
 }
 
-export async function autoDraftPass(runId: number): Promise<void> {
-  const drafted: { title: string; url: string | null; firstTweet: string }[] = [];
+interface Candidate extends RankCandidate {
+  kind: "entry" | "cluster";
+  id: number;
+  fallbackUrl: string | null;
+}
+
+function collectCandidates(runId: number): Candidate[] {
+  const candidates: Candidate[] = [];
 
   if ((getSetting("auto_draft_trending") ?? "1") === "1") {
     for (const cluster of activeClusters()) {
       if (cluster.thread_id != null || cluster.dismissed_at) continue;
-      try {
-        const result = await draftClusterThread(cluster.id);
-        drafted.push({
-          title: cluster.title,
-          url: draftPageUrl("cluster", cluster.id) ?? cluster.members.find((m) => m.url)?.url ?? null,
-          firstTweet: result.tweets[0] ?? "",
-        });
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        console.error(`[auto-draft] cluster ${cluster.id}: ${message}`);
-        appendRunError(runId, `Auto-draft failed for trending "${cluster.title.slice(0, 60)}": ${message}`);
-      }
+      const memberScores = (
+        db
+          .prepare(
+            `SELECT MAX(e.score) AS best FROM cluster_entries ce JOIN entries e ON e.id = ce.entry_id WHERE ce.cluster_id = ?`,
+          )
+          .get(cluster.id) as { best: number | null }
+      ).best;
+      candidates.push({
+        key: `cluster:${cluster.id}`,
+        kind: "cluster",
+        id: cluster.id,
+        title: cluster.title,
+        source: [...new Set(cluster.members.map((m) => m.source_label))].join(", "),
+        reason: null,
+        // Cross-source corroboration bonus: a story in several places outranks its best member.
+        score: memberScores != null ? Math.min(10, memberScores + 1) : null,
+        tags: [],
+        sourcesCount: cluster.sources_count,
+        fallbackUrl: cluster.members.find((m) => m.url)?.url ?? null,
+      });
     }
   }
 
   const selectedTags = autoDraftTags();
   if (selectedTags.length > 0) {
-    const candidates = (
-      db
-        .prepare(
-          `SELECT e.* FROM entries e
-           WHERE e.filtered_run_id = ? AND e.filter_status = 'matched'
-             AND NOT EXISTS (SELECT 1 FROM threads t WHERE t.entry_id = e.id)
-             AND EXISTS (SELECT 1 FROM json_each(COALESCE(e.tags, '[]')) WHERE json_each.value IN (${selectedTags.map(() => "?").join(",")}))
-           ORDER BY e.id`,
-        )
-        .all(runId, ...selectedTags) as DraftableEntry[]
-    );
-    for (const entry of candidates) {
-      try {
-        const result = await draftEntryThread(entry);
-        drafted.push({
-          title: entry.title,
-          url: draftPageUrl("item", entry.id) ?? entry.url,
-          firstTweet: result.tweets[0] ?? "",
-        });
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        console.error(`[auto-draft] entry ${entry.id}: ${message}`);
-        appendRunError(runId, `Auto-draft failed for "${entry.title.slice(0, 60)}": ${message}`);
-      }
+    const rows = db
+      .prepare(
+        `SELECT e.* FROM entries e
+         WHERE e.filtered_run_id = ? AND e.filter_status = 'matched'
+           AND NOT EXISTS (SELECT 1 FROM threads t WHERE t.entry_id = e.id)
+           AND EXISTS (SELECT 1 FROM json_each(COALESCE(e.tags, '[]')) WHERE json_each.value IN (${selectedTags.map(() => "?").join(",")}))
+         ORDER BY e.id`,
+      )
+      .all(runId, ...selectedTags) as (DraftableEntry & {
+      filter_reason: string | null;
+      score: number | null;
+      tags: string | null;
+      source_label: string;
+    })[];
+    for (const entry of rows) {
+      candidates.push({
+        key: `entry:${entry.id}`,
+        kind: "entry",
+        id: entry.id,
+        title: entry.title,
+        source: entry.source_label,
+        reason: entry.filter_reason,
+        score: entry.score,
+        tags: entry.tags ? (JSON.parse(entry.tags) as string[]) : [],
+        fallbackUrl: entry.url,
+      });
+    }
+  }
+
+  return candidates;
+}
+
+/**
+ * End-of-run auto-drafting with two-stage ranking (anti-overwhelm, 2026-08-20):
+ * collect candidates (trending clusters + tag-selected new matches), let ONE
+ * comparative ranking call pick at most `max_auto_drafts` (fewer/zero allowed),
+ * draft the picks best-first, and send one shortlist digest. Ranker failure
+ * falls back to stage-1 score order. Unpicked candidates stay in the Inbox.
+ */
+export async function autoDraftPass(runId: number): Promise<void> {
+  const candidates = collectCandidates(runId);
+  if (candidates.length === 0) return;
+
+  const capRaw = Number(getSetting("max_auto_drafts") ?? "3");
+  const maxPicks = Number.isInteger(capRaw) && capRaw >= 1 && capRaw <= 10 ? capRaw : 3;
+
+  let picks: RankPick[];
+  if (candidates.length === 1) {
+    picks = [{ key: candidates[0].key, why: "" }]; // nothing to compare against
+  } else {
+    try {
+      picks = await rankCandidates(candidates, maxPicks);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[auto-draft] ranker: ${message}`);
+      appendRunError(runId, `Draft ranking failed (falling back to score order): ${message}`);
+      picks = [...candidates]
+        .sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || b.id - a.id)
+        .slice(0, maxPicks)
+        .map((c) => ({ key: c.key, why: "" }));
+    }
+  }
+
+  const drafted: { title: string; url: string | null; firstTweet: string; why?: string }[] = [];
+  for (const pick of picks) {
+    const candidate = candidates.find((c) => c.key === pick.key);
+    if (!candidate) continue;
+    try {
+      const result =
+        candidate.kind === "cluster"
+          ? await draftClusterThread(candidate.id)
+          : await draftEntryThread(
+              db.prepare("SELECT * FROM entries WHERE id = ?").get(candidate.id) as DraftableEntry,
+            );
+      drafted.push({
+        title: candidate.title,
+        url: draftPageUrl(candidate.kind === "cluster" ? "cluster" : "item", candidate.id) ?? candidate.fallbackUrl,
+        firstTweet: result.tweets[0] ?? "",
+        why: pick.why || undefined,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[auto-draft] ${candidate.key}: ${message}`);
+      appendRunError(runId, `Auto-draft failed for "${candidate.title.slice(0, 60)}": ${message}`);
     }
   }
 
   if (drafted.length > 0) {
     try {
-      await sendDraftDigest(drafted);
+      await sendDraftDigest(drafted, candidates.length);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.error(`[auto-draft] digest: ${message}`);

@@ -61,6 +61,8 @@ const migrations: string[] = [
   "ALTER TABLE sources ADD COLUMN schedule_times TEXT",
   // 7 — tags: JSON array of vocabulary tags the filter assigned (settings key "tags").
   "ALTER TABLE entries ADD COLUMN tags TEXT",
+  // 8 — rubric priority score (1-10) from the filter judgment; ranks auto-draft candidates.
+  "ALTER TABLE entries ADD COLUMN score INTEGER",
 ];
 
 const defaultSettings: Record<string, string> = {
@@ -69,6 +71,7 @@ const defaultSettings: Record<string, string> = {
   tags: "",
   auto_draft_trending: "1",
   auto_draft_tags: "",
+  max_auto_drafts: "3",
   dashboard_url: "",
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
   taste_prompt:

@@ -95,6 +95,12 @@ function EntryCard({
       <div className="item-title">{entry.title}</div>
       <div className="t-small" style={{ marginTop: 4 }}>
         <span className="src">{entry.source_label}</span> · {sourceMeta(entry)}
+        {entry.score != null && (
+          <>
+            {" · "}
+            <Chip tone={entry.score >= 7 ? "good" : "neutral"}>★{entry.score}</Chip>
+          </>
+        )}
         {drafted && (
           <>
             {" · "}

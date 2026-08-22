@@ -66,6 +66,7 @@ export interface Entry {
   state: "new" | "notified" | "drafted" | "posted" | "dismissed";
   created_at: string;
   tags: string | null; // JSON array of vocabulary tags
+  score: number | null; // rubric priority 1-10 from the filter judgment
 }
 
 export function parseTags(tags: string | null | undefined): string[] {
@@ -160,6 +161,7 @@ export interface RunEntry {
   filter_reason: string | null;
   state: Entry["state"];
   tags: string | null;
+  score: number | null;
 }
 
 export interface SettingsPayload {

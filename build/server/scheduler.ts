@@ -249,10 +249,10 @@ async function filterPass(runId: number): Promise<void> {
       const verdict = await filterEntry(entry);
       errorStreak = 0;
       db.prepare(
-        "UPDATE entries SET filter_status = ?, filter_reason = ?, filtered_at = ?, filtered_run_id = ?, topics = ?, tags = ? WHERE id = ?",
+        "UPDATE entries SET filter_status = ?, filter_reason = ?, filtered_at = ?, filtered_run_id = ?, topics = ?, tags = ?, score = ? WHERE id = ?",
       ).run(
         verdict.matched ? "matched" : "skipped", verdict.reason, nowIso(), runId,
-        JSON.stringify(verdict.topics), JSON.stringify(verdict.tags), entry.id,
+        JSON.stringify(verdict.topics), JSON.stringify(verdict.tags), verdict.score, entry.id,
       );
       if (verdict.matched) {
         // Attribute the match to this run's row for the entry's source (may be
